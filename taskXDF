@@ -1,8 +1,7 @@
 #! /bin/bash
-
 # This script is intended to be used with the timer script, taskXDF-timer.
 # To avoid having to provide a password to edit the app_config.xml file, 
-#   make yourself a member of the boinc permissions group. $ sudo usermod -a -G boinc yourusername
+#   make yourself a member of the boinc permissions group: $ sudo usermod -a -G boinc yourusername
 #   and be sure that the boinc group has write permission to the app_config file:
 #    -rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
 #  After adding yourself to the boinc group, a system reboot is needed
@@ -15,13 +14,14 @@
 #   Consequently, the fewer cards, the better the expected productivity gains.
 # For use with single and multi AMD GPU card systems.
 # Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi.
+# The program will not work in mixed task queues; 
+#   all tasks in queue must be of the gravitational wave O2MDF work series.
 # Written with GNU bash, version 5.0 (x86_64-pc-linux-gnu). 
-#     No guarantee it will work on all distros.
+#   No guarantee it will work on all distros.
 # This version uses delta frequencies (DF) of O2MDF gravitational wave tasks.
 # The taskXDF .cfg configuration file is required, in the same folder,
 #   to set user-defined variables.
 
-# Scripts were written with bash Version 5.
 
 ########################## Set up variables and do some error checking ##########################
 #################################################################################################
