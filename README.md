@@ -38,6 +38,7 @@ To do this, make yourself a member of the boinc permissions group. Example userm
 ~$ groups boinc
 boinc : boinc video youtheuser render
 ```
+After adding yourself to the boinc group, a system reboot is needed for the new permissions to take effect.
 Check that the boinc group has write permission for the app_config.xml file, e.g.:
 
 `-rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml`
