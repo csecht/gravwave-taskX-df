@@ -31,7 +31,7 @@ Jan 10 14:50:50 │     20 │    45 │ 0.77 │   0.67 │ 4 │ [.20 .20 .20 
 ```
 
 NOTES and TIPS:
-To run the main script through the timer script you may nee to change permissions of app_config.xml and its project folder to avoid to need to provide sudo authentication to edit <gpu_usage>.
+To run the main script through the timer script you may want to change permissions of app_config.xml and its project folder to avoid the need to provide sudo authentication to edit <gpu_usage>.
 To do this, make yourself a member of the boinc permissions group. Example usermod command and groups output:
 ```
 ~$ sudo usermod -a -G boinc youtheuser
