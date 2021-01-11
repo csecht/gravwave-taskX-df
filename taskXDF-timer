@@ -1,0 +1,128 @@
+#! /bin/bash
+
+# This interval timer script executes taskXDF in the same folder.
+# To avoid having to provide a password to edit the app_config.xml file,
+#   make yourself a member of the boinc permissions group. $ sudo usermod -a -G boinc yourusername
+#   and be sure that the boinc group has write permission to the app_config file:
+#    -rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
+#  After adding yourself to the boinc group, a system reboot is needed
+#   for the new permissions to take effect.
+
+# The approach can sidestep the need for setting up a systemd .service and .timer, 
+#   but will need to manually launch this timer script on reboot.
+# Suggestion:   Run vramDF on a 300 to 600 sec interval, 
+#               run taskXDFt on a 60 sec interval, 
+#               run taskXDFmon on a 2 to 5 min interval.
+
+# Need to read $mod and log path, then create .log in case it is not present.
+. ./taskXDF.cfg
+touch "$log_file"
+
+target=taskXDF
+script="$(basename -- $0)"
+ver='0.4.0'
+
+blue='\x1b[1;38;5;33m'
+orng='\x1b[0;38;5;202m'
+brn='\033[0;33m'
+nc='\033[0m'
+
+if [ "$#" -ne 1 ] || [[ "$1" =~ help|about ]] || [[ "$1" =~ -[0-9] ]]; then
+    echo "
+    A time interval, in seconds, for running the taskXDFt script is required,
+    e.g., $0 60
+
+    This timer script provides continuous timed runs of the taskXDFt bash script.
+ 
+    A time interval of 0 (zero) provides a one-off status report from $target,
+        otherwise a non-zero interval time provides interval reports and taskX adjustments. 
+
+    Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
+        Einstein@Home O2MDF gravitational wave GPU tasks.
+
+    A log file of Terminal output is created in the current folder.
+
+    For explanation of interval data reported: $0 --header.
+
+    Version: $ver"
+    echo
+    exit 0
+
+elif [ "$1" == '--header' ]; then
+    echo
+    echo "Report header:"
+    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+    printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
+    echo "Datetime of $target script execution
+————————————————│ queued: total # of tasks
+—————————————————————————│ %'s: high card, max GPU memory in use
+————————————————————————————————————————│ taskGB: high card, avg task VRAM GB used
+—————————————————————————————————————————————————│ X: current task multiple
+—————————————————————————————————————————————————————│ Delta Frequencies of GW tasks"
+    echo "NOTES:"
+    echo "'High card' is the card with the highest value among all active cards."
+    echo "DF values are listed from most progressed to least progessed tasks."
+    echo "When all running DFs are equal, taskGB is the GB requirement of that DF."
+    printf "${brn}'ready' is next task 'Ready to run', one listed for each active card.${nc}\n\n"
+    exit 0
+
+elif [[ "$1" =~ [a-zA-Z] ]]; then
+    echo "Invalid parameter. Try: $0 --help"
+    exit 0
+
+#elif [ "$1" -eq 0 ]; then
+elif (( "$1" == 0 )); then
+    echo "
+    With a time interval of $1, $script is executed in status-only mode."
+    echo
+    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+    printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
+    echo -n "————————————————│————————│———————│——————│————————│———│"
+    echo "————————————————————————————————————————"
+    /bin/bash ./$target --status
+    exit 0
+fi
+
+# Provide an initial information message when timer is started.
+echo "Currently running $script with an interval of $1 seconds. (stop with CTRL+C)
+A status report is issued every $mod minutes, as set in the taskXDF.cfg file.
+Running..."
+echo
+echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
+echo -n "————————————————│————————│———————│——————│————————│———│"
+echo "————————————————————————————————————————"
+
+# Run continuously until manually stopped. 
+# Provide a reminder of how to stop once every 80 interval cycles of the main script.
+# The actual number of status reports between reminders depends on the $mod setting in the -cfg file.
+#   The reminder cycle interval, [ $count -eq 80 ], can be set to your liking.
+# Log file sizes greater than 10 MB are emptied; set max size limit to your liking.
+cycle=0
+while true
+do
+    /bin/bash ./$target
+
+    sleep ${1}
+    ((cycle++))
+    ((yikes++))
+    if (( cycle == 80 )); then
+        echo "This script $script can be stopped with CTRL+C. 
+        It executes $target every $1 seconds and reports every $mod minutes."
+        echo
+        echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+        printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
+        echo -n "————————————————│————————│———————│——————│————————│———│"
+        echo "————————————————————————————————————————"
+        cycle=0
+    fi
+
+    if ((yikes >= 2 * 10**4 )); then
+        days=$(($1 * yikes / 60 / 24))
+        echo "   **** YIKES! $script has been running for $yikes cycles, $days days. ****"
+        echo "Just in case you forgot about me, I will EXIT now...."
+        echo
+        exit 0
+    fi
+done
+
