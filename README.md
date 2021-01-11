@@ -1,7 +1,7 @@
 # gravwave-taskX-df
 Scripts to automatically adjust concurrency of E@H gravitational wave tasks running on AMD GPUs
 
-These taskXDF bash shell scripts are for Linux systems with one or more AMD GPUs running Einstein@Home O2MDF gravitational wave GPU tasks through BOINC. Supported AMD GPUs are Ellesmere, Polaris, Vega, or Navi. nVIDIA cards are not currently supported.
+These taskXDF bash shell scripts are for Linux systems with one or more AMD GPUs running Einstein@Home O2MDF gravitational wave GPU tasks through BOINC. Supported AMD GPUs are Ellesmere, Polaris, Vega, or Navi. nVIDIA cards are not currently supported. The program will not work in mixed task queues; all tasks in queue must be of the gravitational wave O2MDF work series.
 
 The package consists of the files, taskXDF, taskXDF-timer, and taskXDF.cfg. All files should be run from within the same directory.
 
