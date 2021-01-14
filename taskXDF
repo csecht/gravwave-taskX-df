@@ -94,7 +94,7 @@ gttpct() {
 # The pgrep pattern -i 'taskxdf' should match any expected name variants of the timer or main scripts.
 # If need to test this script while the timer script is running, then comment out the statement:
 ## timer_uptime="$(ps --pid $(pgrep -i taskxdf) -o etimes | grep -o '[0-9]*')"
-#  that is in the reporting section of the main body.
+#  that is in the interval reporting section of the main body.
 taskprocs_num=$(pgrep -ic taskxdf)
 if ((taskprocs_num > 1)); then
     task_pids=$(pgrep -i taskxdf)
@@ -147,7 +147,6 @@ fi
 #   then that card has no vram or gtt data to process and is not evaluated.
 amd_paths=$(find /sys/class/drm/card?/device/mem_info_vram_total -print)
 num_gpu=$(wc -w <<<"$amd_paths")
-
 if [ -z "$amd_paths" ]; then
     echo "There are no active or recognized AMD cards. Exiting..." | tee -a $log_file
     exit 1
