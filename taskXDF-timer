@@ -67,7 +67,7 @@ elif [ "$1" == '--header' ]; then
     exit 0
 
 elif [[ "$1" =~ [a-zA-Z] ]]; then
-    echo "Invalid parameter. Try: $0 --help"
+    echo "Invalid parameter of \"$1\". Try: $0 --help"
     exit 0
 
 #elif [ "$1" -eq 0 ]; then
@@ -96,8 +96,8 @@ echo "————————————————————————�
 # Run continuously until manually stopped. 
 # Provide a reminder of how to stop once every 80 interval cycles of the main script.
 # The actual number of status reports between reminders depends on the $mod setting in the -cfg file.
-#   The reminder cycle interval, [ $count -eq 80 ], can be set to your liking.
-# Log file sizes greater than 10 MB are emptied; set max size limit to your liking.
+#   The reminder cycle interval, [ $count -eq 120 ], can be set to your liking.
+# Log file sizes greater than 20 MB are emptied; set max size limit to your liking.
 cycle=0
 while true
 do
@@ -106,7 +106,7 @@ do
     sleep ${1}
     ((cycle++))
     ((yikes++))
-    if (( cycle == 80 )); then
+    if (( cycle == 120 )); then
         echo "This script $script can be stopped with CTRL+C. 
         It executes $target every $1 seconds and reports every $mod minutes."
         echo
