@@ -46,5 +46,8 @@ Check that the boinc group has write permission for the app_config.xml file, e.g
 You will need to manually launch the timer script on each machine reboot.
 To keep taskX adjustments responsive to changing DFs of GW tasks, use a 60 second time interval argument when launching the timer script.
 
+A status report will display upon execution and list the current time. Subsequent reports will display according to the clock time intervals set by the 'mod' variable in the .cfg file. For example, if mod is 5 minutes, then a report will display at 10:05, 10:10, etc., even though the program started running at 10:03.
+
+
 
 

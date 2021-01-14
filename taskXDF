@@ -394,9 +394,9 @@ gttpct_curr=$(gttpct)
 vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
-######################## Report task metrics on the configured interval.  ################
+######################## Report task and GPU metrics on the configured interval.  ##################
 # $mod, set in  .cfg, is the number of minutes between reports.
-# Need to specify base 10 for date variable in bash b/c may get warning when left as octal.
+# Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
 #mod=1  ## DEBUG
 tic=10#$(date +%M)
@@ -404,24 +404,28 @@ taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr")
 date=$(date "+%b %d")
 time=$(date "+%T")
-
 # These escape codes will work with all ANSI/VT100 terminals and terminal emulators.
 blue='\x1b[1;38;5;33m'  # Blue and orange are for red-green color blind users.
 orng='\x1b[0;38;5;202m'
 brn='\033[0;33m'
 nc='\033[0m'
-
 # Need pretty terminal output,
 # queued │ VRAM% │ GTT% │ taskGB │
 pad=" %5d │ %5d │ %4.2f │ %6.2f │"
-if [ $((tic % mod)) -eq 0 ]; then
-echo -n "$date $time │ "                                                    | tee -a $log_file
-printf "${pad}" "${total_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
-printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
+
+# Need initial status report, so check how long timer script has been running, in seconds,
+#   and print initial report if less than a few seconds; that is, it just started.
+#   The pgrep pattern -i 'taskxdf' should match any expected name variants of the timer or main scripts.
+timer_uptime="$(ps --pid $(pgrep -i taskxdf) -o etimes | grep -o '[0-9]*')"
+
+if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
+    echo -n "$date $time │ "                                                    | tee -a $log_file
+    printf "${pad}" "${total_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
+    printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
 # ..but need to remove font color escape codes from file text.
 echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >> $log_file
 fi
-######################## End reporting of interval task metrics. ########################
+############################ End reporting of interval metrics. ####################################
 
 
 # When a gpu is @1X and a task has just begun running
@@ -523,7 +527,7 @@ fi
 #   Some of these variables are set in .cfg.
 #   Check whether there is available VRAM to add another tasks.
 #   Check whether possibly running out of tasks.
-#   Check whether VRAM% is below expected min, i.e., in between tasks.
+#   Check whether VRAM% is below expected minimum, maybe in between tasks.
 #   Check whether any tasks are uploading.
 #   Check whether a running tasks is near or at completion (when vram% may be low).
 #   Check whether newly started tasks have progressed toward stable vram%.
@@ -586,7 +590,7 @@ if [ $status_only == "no" ]; then
     fi
 fi
 
-############################## Edit app_config.xml and issue final report ####################
+############################## Edit app_config.xml and issue change report ####################
 set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X")   # Used for stdout and logging.
