@@ -1,6 +1,6 @@
 #! /bin/bash
 # This script is intended to be used with the timer script, taskXDF-timer.
-# To avoid having to provide a password to edit the app_config.xml file, 
+# To avoid having to provide a password to edit the app_config.xml file,
 #   make yourself a member of the boinc permissions group: $ sudo usermod -a -G boinc yourusername
 #   and be sure that the boinc group has write permission to the app_config file:
 #    -rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
@@ -14,84 +14,75 @@
 #   Consequently, the fewer cards, the better the expected productivity gains.
 # For use with single and multi AMD GPU card systems.
 # Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi.
-# The program will not work in mixed task queues; 
+# The program will not work in mixed task queues;
 #   all tasks in queue must be of the gravitational wave O2MDF work series.
-# Written with GNU bash, version 5.0 (x86_64-pc-linux-gnu). 
+# Written with GNU bash, version 5.0 (x86_64-pc-linux-gnu).
 #   No guarantee it will work on all distros.
 # This version uses delta frequencies (DF) of O2MDF gravitational wave tasks.
 # The taskXDF .cfg configuration file is required, in the same folder,
 #   to set user-defined variables.
-
 
 ########################## Set up variables and do some error checking ##########################
 #################################################################################################
 
 # Need to know highest or lowest values among all active cards because boinc task multiples
 #   apply to all cards, thus need to use the most conservative memory values to apply to all.
-# For single card systems, something like this code example would suffice: 
+# For single card systems, something like this code example would suffice:
 #   vGB_total=$(cat /sys/class/drm/card1/device/mem_info_vram_total)
 
 # Function to return lowest total VRAM GB among AMD card(s).
-vgbtotal ()
-{
+vgbtotal() {
     vGB_total=100
-    for p in $amd_paths
-    do
+    for p in $amd_paths; do
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_tot=$(cat ${card_path}mem_info_vram_total)
         temp_tot=$(bc <<<"scale=2; $vm_tot / 1024^3")
-        if  [ $(bc <<<"$temp_tot < $vGB_total") -eq 1 ]; then
-           vGB_total=$temp_tot
+        if [ $(bc <<<"$temp_tot < $vGB_total") -eq 1 ]; then
+            vGB_total=$temp_tot
         fi
     done
-    echo $vGB_total        
+    echo $vGB_total
 }
 
 # Function to return highest VRAM GB in use among AMD card(s)
-vgbused ()
-{
+vgbused() {
     vGB_used=0
-    for p in $amd_paths
-    do
+    for p in $amd_paths; do
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_used=$(cat ${card_path}mem_info_vram_used)
         temp_used=$(bc <<<"scale=2; $vm_used / 1024^3")
-        if  [ $(bc <<<"$temp_used > $vGB_used") -eq 1 ]; then
-           vGB_used=$temp_used
+        if [ $(bc <<<"$temp_used > $vGB_used") -eq 1 ]; then
+            vGB_used=$temp_used
         fi
     done
     echo $vGB_used
 }
 
 # Function to calc. highest VRAM used % among AMD card(s).
-vrampct ()
-{
+vrampct() {
     vpct_curr=0
-    for p in $amd_paths
-    do
+    for p in $amd_paths; do
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_used=$(cat ${card_path}mem_info_vram_used)
         vm_tot=$(cat ${card_path}mem_info_vram_total)
-        tmp_vpct_curr=$(( 100 * vm_used / vm_tot ))
+        tmp_vpct_curr=$((100 * vm_used / vm_tot))
         if ((tmp_vpct_curr > vpct_curr)); then
-           vpct_curr=$tmp_vpct_curr
+            vpct_curr=$tmp_vpct_curr
         fi
     done
     echo $vpct_curr
 }
 
 # Function to calc. highest GTT used% among AMD card(s).
-gttpct ()
-{
+gttpct() {
     gttpct_curr=0
-    for p in $amd_paths
-    do
+    for p in $amd_paths; do
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         gtt_used=$(cat ${card_path}mem_info_gtt_used)
         gtt_tot=$(cat ${card_path}mem_info_gtt_total)
         tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
         if [ $(bc <<<"$tmp_gttpct_curr > $gttpct_curr") -eq 1 ]; then
-           gttpct_curr=$tmp_gttpct_curr
+            gttpct_curr=$tmp_gttpct_curr
         fi
     done
     echo $gttpct_curr
@@ -99,17 +90,30 @@ gttpct ()
 
 . ./taskXDF.cfg
 
+# Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
+# The pgrep pattern -i 'taskxdf' should match any expected name variants of the timer or main scripts.
+# If need to test this script while the timer script is running, then comment out the statement:
+## timer_uptime="$(ps --pid $(pgrep -i taskxdf) -o etimes | grep -o '[0-9]*')"
+#  that is in the reporting section of the main body.
+taskprocs_num=$(pgrep -ic taskxdf)
+if ((taskprocs_num > 1)); then
+    task_pids=$(pgrep -i taskxdf)
+    echo "*** NOTICE: $taskprocs_num taskXDF process are running. More than one is not advised. ***"
+    echo "Their process IDs are:"
+    echo $task_pids
+    echo "You will receive process ID error messages as long as this continues..."
+fi
+
 # When need to just get the status report and not change taskX.
-# Script argument of --status is normally passed from timer script. 
+# Script argument of --status is normally passed from timer script.
 status_only="no"
 if [ "$1" == "--status" ]; then
     mod=1
     status_only="yes"
 fi
 
-
 # The valid X list assumes there are UP TO five valid task multiples from  .cfg.
-# The X list is used in main body to raise task multiples; 
+# The X list is used in main body to raise task multiples;
 #   reversed list used to lower task multiples.
 valid_Xs="$X1 $X2 $X3 $X4 $X5"
 reverse_Xs=$(echo "$valid_Xs" | rev)
@@ -120,44 +124,42 @@ set -- $valid_Xs
 lowest_X=$1
 unset
 
-
 # Exit point. Check for bad values from the .cfg file.
-if  [[ "$valid_Xs" =~ [0.A-Za-z] ]]     ||
-    [[ $vpct_max =~ ^[0]|[.A-Za-z] ]]   ||
-    [[ $vpct_min =~ ^[0]|[.A-Za-z] ]]   ||
-    [[ $gpct_max =~ ^[0]|[A-Za-z] ]]    ||
-    [[ $sleep_t =~  ^[0]|[A-Za-z] ]]    ||
-    [[ $mod =~      ^[0]|[.A-Za-z] ]]
-then
+if [[ "$valid_Xs" =~ [0.A-Za-z] ]] ||
+    [[ $vpct_max =~ ^[0]|[.A-Za-z] ]] ||
+    [[ $vpct_min =~ ^[0]|[.A-Za-z] ]] ||
+    [[ $gpct_max =~ ^[0]|[A-Za-z] ]] ||
+    [[ $sleep_t =~ ^[0]|[A-Za-z] ]] ||
+    [[ $mod =~ ^[0]|[.A-Za-z] ]]; then
     echo "Some values in .cfg file accept decimals, some accept only integers,
     but never just zero. None, except path names, accept letter characters.
     Edit the .cfg file. Exiting...." | tee -a $log_file
     exit 1
 fi
 
-#echo "Configuration values -- 
+#echo "Configuration values --
 #    Task multiples: $valid_Xs
 #    Max VRAM% limit: $vpct_max; Max GTT% limit: $gpct_max"
 #    Script sleep duration, base sec.: $sleep_t"
 
-# Exit point. Can only work with supported AMD devices and their card paths. 
-# If the proxy file "mem_info_vram_total" does not exist for a particular card number, 
+# Exit point. Can only work with supported AMD devices and their card paths.
+# If the proxy file "mem_info_vram_total" does not exist for a particular card number,
 #   then that card has no vram or gtt data to process and is not evaluated.
 amd_paths=$(find /sys/class/drm/card?/device/mem_info_vram_total -print)
 num_gpu=$(wc -w <<<"$amd_paths")
 
 if [ -z "$amd_paths" ]; then
-   echo "There are no active or recognized AMD cards. Exiting..." | tee -a $log_file
-   exit 1
+    echo "There are no active or recognized AMD cards. Exiting..." | tee -a $log_file
+    exit 1
 fi
 
 # Need to first get boinc data on all tasks in queue so relevant tasks can be parsed.
 # Subsequent filtering and pasting works because boinc-client --get_tasks reports tasks
 #   sorted by order of action precedent.
 # Watch for possible boinc "Authentication failure -155" error when calling boinccmd.
-# If boinccmd cannot be executed outside of the boinc data folder or /user/bin, see: 
+# If boinccmd cannot be executed outside of the boinc data folder or /user/bin, see:
 #   https://einsteinathome.org/content/cant-access-local-boinc-client-anymore-authorization-failure-155
-# Path to boinccmd is usually /usr/bin/boinccmd, but may differ in some distributions, 
+# Path to boinccmd is usually /usr/bin/boinccmd, but may differ in some distributions,
 #   so find path with 'which'.
 # Exit point if boinccmd not found.
 boinc_cmd=$(command -v boinccmd)
@@ -176,12 +178,12 @@ names=$(echo "$tasks" | grep '   name' | sed 's/   name: //')
 
 # Exit point. Script expects only task names with two search frequency values present.
 if grep -qv "O2MDF" <<<"$names"; then
-   echo "I need O2MDF tasks to run. Exiting...." | tee -a $log_file
-   exit 0
+    echo "I need O2MDF tasks to run. Exiting...." | tee -a $log_file
+    exit 0
 fi
 
 # Parse relevant lines from all tasks; used for eval of waiting, lookahead, or incrementing.
-# Prepend newline to the 'states' vars so later paste retains register with $allDFs. 
+# Prepend newline to the 'states' vars so later paste retains register with $allDFs.
 # Only running, waiting, and suspended tasks will have a 'fraction done' tag.
 # TODO: Does it matter if any of these var change after various script pauses.
 states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
@@ -196,15 +198,14 @@ fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 #   or just begun running.
 frac_hi=0
 frac_lo=100
-while read f
-do
+while read f; do
     tmpfrac=$f
     if [ $(bc <<<"$tmpfrac > $frac_hi") -eq 1 ]; then
-    frac_hi=$tmpfrac
+        frac_hi=$tmpfrac
     fi
-    
+
     if [ $(bc <<<"$tmpfrac < $frac_lo") -eq 1 ]; then
-    frac_lo=$tmpfrac
+        frac_lo=$tmpfrac
     fi
 done <<<"$fracdone"
 
@@ -229,19 +230,19 @@ sleep_factor=4
 if ((num_run == 0)); then
     if ((total_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check Boinc Manager. Exiting..." | tee -a $log_file
-        exit 0 
+        exit 0
     fi
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-    echo -n "$(date "+%b %d %T") No tasks are running; trying to resume... "    >> $log_file
-        echo "Script pausing $((sleep_factor * sleep_t)) sec."                  >> $log_file
+    echo -n "$(date "+%b %d %T") No tasks are running; trying to resume... " >>$log_file
+    echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
     sleep $((sleep_factor * sleep_t))
-    
+
     tasks="$(${boinc_cmd} --get_tasks)"
     sleep 1
     num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
     if ((num_run > 0)); then
         curr_X=$((num_run / num_gpu))
-        echo "$num_run task(s) are running following task resumption."          >> $log_file
+        echo "$num_run task(s) are running following task resumption." >>$log_file
     elif ((num_run == 0)); then
         echo "$(date "+%b %d %T") No tasks are running. Check Boinc Manager. Exiting..." | tee -a $log_file
         exit 0
@@ -258,9 +259,9 @@ fi
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (force_X stays "no" for main body evaluation).
 force_X="no"
-if  [[ ! "$valid_Xs" =~ $curr_X ]] && ((total_tasks > num_run)); then
-     force_X="yes"
-     echo -n "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
+if [[ ! "$valid_Xs" =~ $curr_X ]] && ((total_tasks > num_run)); then
+    force_X="yes"
+    echo -n "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
 fi
 
 # Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
@@ -278,53 +279,50 @@ fi
 #$total_tasks task(s) total in queue." | tee -a $log_file
 
 # Delta frequency (DF) of all tasks are later filtered for relevant tasks.
-while read name
-do
+while read name; do
     frequencies=$(grep -oE "[[:digit:]]+\\.[[:digit:]]{2}" <<<"$name")
-    f1=$(echo $frequencies | cut -d" " -f 1)  # Do not quote $frequencies or use <<<$frequenciess.
+    f1=$(echo $frequencies | cut -d" " -f 1) # Do not quote $frequencies or use <<<$frequenciess.
     f2=$(echo $frequencies | cut -d" " -f 2)
     df=$(bc <<<"scale=2; $f2 - $f1")
-    allDFs="${allDFs}"$'\n'"$df"              # First pass prepends a newline, same as $states.
+    allDFs="${allDFs}"$'\n'"$df" # First pass prepends a newline, same as $states.
 done <<<"$names"
 
 # Need to have relevant data from each task in one row. Lines in vars should be in register.
 findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates"))
 
-
 # Get DFs of all running (scheduled) tasks.
 # Get DF of all waiting (preempted) tasks and the next waiting task to run.
 # Get DF of all n ready (downloaded & unintialized) tasks, given n GPUs, and next ready task.
-#   Can look-ahead for more ready tasks with: if [ $cnt -le $(($num_gpu*$curr_X)) ] 
+#   Can look-ahead for more ready tasks with: if [ $cnt -le $(($num_gpu*$curr_X)) ]
 #     instead of: if ((cnt <= num_gpu)).
 # This all works because boinc-client --get_tasks sorts tasks by order of action precedent.
 # Waiting and ready DFs are converted to VRAM useage, $vpct_new, in the main body.
 waitDF_hi=0
 cnt=0
 readyDF_hi=0
-while read line
-do
-    if [[  "$line" =~ scheduled ]]; then
+while read line; do
+    if [[ "$line" =~ scheduled ]]; then
         runDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
-        runDF_all="${runDF_all}$runDF "                     # Used only for stdout or logging
+        runDF_all="${runDF_all}$runDF " # Used only for stdout or logging
     fi
 
-    if [[  "$line" =~ preempted ]]; then
+    if [[ "$line" =~ preempted ]]; then
         waitDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
         waitDF_all="${waitDF_all}$waitDF "
-        for df in $waitDF_all; do                        
-            if [ $(bc <<<"$df > $waitDF_hi") -eq 1 ]; then    # Get the highest waiting DF
+        for df in $waitDF_all; do
+            if [ $(bc <<<"$df > $waitDF_hi") -eq 1 ]; then # Get the highest waiting DF
                 waitDF_hi=$df
             fi
         done
     fi
 
     if [[ "$line" =~ downloaded[[:space:]]uninitialized ]]; then
-        cnt=$((cnt+1))
+        cnt=$((cnt + 1))
         if ((cnt <= num_gpu)); then
             readyDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
             readyDF_lookahead="${readyDF_lookahead}$readyDF "
         fi
-        for df in $readyDF_lookahead; do                    # Get the highest ready DF
+        for df in $readyDF_lookahead; do # Get the highest ready DF
             if [ $(bc <<<"$df > $readyDF_hi") -eq 1 ]; then
                 readyDF_hi=$df
             fi
@@ -338,10 +336,10 @@ if [ ! "$waitDF_all" ]; then
 fi
 
 # Set up associative array to get the VRAM GB requirement of a task from its DF.
-# Gb values of $df are set in  .cfg. 
-declare -A taskDFgb=( [.10]=$df10 [.15]=$df15 [.20]=$df20 [.25]=$df25 [.30]=$df30 [.35]=$df35 \
-[.40]=$df40 [.45]=$df45 [.50]=$df50 [.55]=$df55 [.60]=$df60 [.65]=$df65 [.70]=$df70 \
-[.75]=$df75 [.80]=$df80 [.85]=$df85 [.90]=$df90 [.95]=$df95 [1.00]=$df100 )
+# Gb values of $df are set in  .cfg.
+declare -A taskDFgb=([.10]=$df10 [.15]=$df15 [.20]=$df20 [.25]=$df25 [.30]=$df30 [.35]=$df35
+    [.40]=$df40 [.45]=$df45 [.50]=$df50 [.55]=$df55 [.60]=$df60 [.65]=$df65 [.70]=$df70
+    [.75]=$df75 [.80]=$df80 [.85]=$df85 [.90]=$df90 [.95]=$df95 [1.00]=$df100)
 
 #echo "$(date "+%b %d %T")
 #DF(s) of running tasks: $runDF_all
@@ -356,24 +354,24 @@ size_log=$(du -0 -m $log_file | awk '{print $1}')
 if ((size_log >= logsize_lim)); then
     # NOTE: not tee -a option on printf, so notification will overwrite file.
     printf "\n*** The file $log_file was cleared because it reached $size_log. ***\n\n" | tee $log_file
-    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >> $log_file
-    echo "DFs: [running] [waiting] [ready]"                           >> $log_file
+    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
+    echo "DFs: [running] [waiting] [ready]" >>$log_file
     echo
-    echo -n "----------------│--------│-------│------│--------│---│"  >> $log_file
-    echo "----------------------------------------"                   >> $log_file
+    echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
+    echo "----------------------------------------" >>$log_file
 elif ((size_log == 0)); then
-    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >> $log_file
-    echo "DFs: [running] [waiting] [ready]"                           >> $log_file
+    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
+    echo "DFs: [running] [waiting] [ready]" >>$log_file
     echo
-    echo -n "----------------│--------│-------│------│--------│---│"  >> $log_file
-    echo "----------------------------------------"                   >> $log_file
+    echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
+    echo "----------------------------------------" >>$log_file
 fi
 
 #################################################################################################
 #                          Main body for evaluation begins here
 #################################################################################################
 
-# SUMMARY: 
+# SUMMARY:
 # The goal is to increase task X as much as possible while avoiding task suspensions
 #   triggered by excessive VRAM% or GTT%.
 # If VRAM is not limiting and no other limits are in place, then
@@ -381,7 +379,7 @@ fi
 #   but if VRAM% exceeds exceeds set limits, then
 #   lower task X a value.
 # If GTT% exceeds set limit, then lower task X to it's lowest configured value.
-#   Task X can then increase each script cycle, hopefully to a systainable value. 
+#   Task X can then increase each script cycle, hopefully to a systainable value.
 # If GTT% gets stuck at an excessive level, then
 #   suspend tasks until GTT is below that limit, and
 #   pause script to allow GPU to get up to speed and recalculate memory usages.
@@ -405,7 +403,7 @@ gttpct_fmt=$(printf '%.2f' "$gttpct_curr")
 date=$(date "+%b %d")
 time=$(date "+%T")
 # These escape codes will work with all ANSI/VT100 terminals and terminal emulators.
-blue='\x1b[1;38;5;33m'  # Blue and orange are for red-green color blind users.
+blue='\x1b[1;38;5;33m' # Blue and orange are for red-green color blind users.
 orng='\x1b[0;38;5;202m'
 brn='\033[0;33m'
 nc='\033[0m'
@@ -419,82 +417,80 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 timer_uptime="$(ps --pid $(pgrep -i taskxdf) -o etimes | grep -o '[0-9]*')"
 
 if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
-    echo -n "$date $time │ "                                                    | tee -a $log_file
+    echo -n "$date $time │ " | tee -a $log_file
     printf "${pad}" "${total_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
-# ..but need to remove font color escape codes from file text.
-echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >> $log_file
+    # ..but need to remove font color escape codes from file text.
+    echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
 ############################ End reporting of interval metrics. ####################################
 
-
 # When a gpu is @1X and a task has just begun running
 #   vram% may be below what is required to complete the task
-#   (or if otherwise unexpected low vram%), 
+#   (or if otherwise unexpected low vram%),
 #   so need to pause the script, then check whether vram% reaches set minimum limit.
 # This should help provide more realistic VRAM% values for estimating $vpct_new.
-# $sleep_t is set in  .cfg.  
+# $sleep_t is set in  .cfg.
 #vpct_min=$(bc <<<"100 * ${taskDFgb[.10]} / $vGB_total")  ##DEBUG
 #sleep_t=1  ## DEBUG
 sleep_factor=2
 if ((vpct_curr < vpct_min)); then
     echo -n "$(date "+%b %d %T") Pausing script $((sleep_factor * sleep_t)) sec:" | tee -a $log_file
-        echo " VRAM% $vpct_curr is below limit of $vpct_min"                      | tee -a $log_file
+    echo " VRAM% $vpct_curr is below limit of $vpct_min" | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
-    
+
     vpct_curr=$(vrampct)
     gttpct_curr=$(gttpct)
     if ((vpct_curr < vpct_min)); then
         echo "$(date "+%b %d %T") Another pause of $sleep_t sec: VRAM% $vpct_curr is below limit of $vpct_min"
         sleep $sleep_t
-        
+
         vpct_curr=$(vrampct)
         gttpct_curr=$(gttpct)
         if ((vpct_curr < vpct_min)); then
             echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below limit." | tee -a $log_file
-                echo " Check Boinc Manager and settings in  .cfg."              | tee -a $log_file
+            echo " Check Boinc Manager and settings in  .cfg." | tee -a $log_file
         fi
     fi
 fi
-
 
 # Suspend tasks for short time to remove GTT memory i/o bottleneck.
 #   After tasks resume, script pauses to allow card memory usage to equilibrate.
 # Condition is expected to run only after task X decrements in the previous script cycle.
 # Previous task X decrement to lowest X should lower GTT% enough to avoid suspension.
-# $sleep_t is set in  .cfg.  
+# $sleep_t is set in  .cfg.
 #sleep_t=2  ##DEBUG
 sleep_factor=4
 if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
-    echo -n "$(date "+%b %d %T") TASKS SUSPENDED for $sleep_t sec.;"   | tee -a $log_file
-        echo " GTT% of $gttpct_curr is above limit of $gpct_max"       | tee -a $log_file
+    echo -n "$(date "+%b %d %T") TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
+    echo " GTT% of $gttpct_curr is above limit of $gpct_max" | tee -a $log_file
     sleep $sleep_t
-    
+
     vpct_curr=$(vrampct)
     gttpct_curr=$(gttpct)
     if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
-        echo -n "$(date "+%b %d %T") Waiting another $sleep_t sec.;"   >> $log_file
-            echo " GTT% is still above $gpct_max"                      >> $log_file
+        echo -n "$(date "+%b %d %T") Waiting another $sleep_t sec.;" >>$log_file
+        echo " GTT% is still above $gpct_max" >>$log_file
         sleep $sleep_t
-        
+
         vpct_curr=$(vrampct)
         gttpct_curr=$(gttpct)
         if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
-            echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr remains" >> $log_file
-                echo " above limit. Check gpct_max setting in  .cfg."  >> $log_file
+            echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr remains" >>$log_file
+            echo " above limit. Check gpct_max setting in  .cfg." >>$log_file
         fi
     fi
-    
+
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-    echo -n "$(date "+%b %d %T") TASKS RESUMED. Script will pause"         | tee -a  $log_file
-        echo " $((sleep_factor * sleep_t)) sec. to get new memory usages." | tee -a  $log_file
+    echo -n "$(date "+%b %d %T") TASKS RESUMED. Script will pause" | tee -a $log_file
+    echo " $((sleep_factor * sleep_t)) sec. to get new memory usages." | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
-    
+
     vpct_curr=$(vrampct)
     gttpct_curr=$(gttpct)
-    echo -n "$(date "+%b %d %T") SCRIPT RESUMED. GTT% now $gttpct_curr;"   | tee -a  $log_file
-        echo " VRAM% now $vpct_curr."                                      | tee -a  $log_file
+    echo -n "$(date "+%b %d %T") SCRIPT RESUMED. GTT% now $gttpct_curr;" | tee -a $log_file
+    echo " VRAM% now $vpct_curr." | tee -a $log_file
 fi
 
 # If GTT% stays high, then set flag to change to lowest valid X.
@@ -511,7 +507,7 @@ vGB_used=$(vgbused)
 if ((num_wait >= 1)); then
     waitGB=${taskDFgb[$waitDF_hi]}
     newGB=$(bc <<<"$vGB_used + $waitGB")
-    vpct_new=$(bc <<< "100 * $newGB / $vGB_total")
+    vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
 #    echo "  Adding the next highest DF waiting task would raise VRAM% to ~$vpct_new." | tee -a $log_file
 elif ((num_wait == 0)); then
     readyGB=${taskDFgb[$readyDF_hi]}
@@ -533,14 +529,13 @@ fi
 #   Check whether newly started tasks have progressed toward stable vram%.
 #   Check for excessive GTT% when VRAM% is within its acceptable range.
 incr_X="yes"
-if  ((vpct_new >= vpct_max))                        ||
-    ((total_tasks == num_run))                      ||
-    ((vpct_curr < vpct_min))                        ||
-    ((num_upload > 0))                              ||
-    [ $(bc <<<"$frac_hi >= 0.98") -eq 1 ]           ||
-    [ $(bc <<<"$frac_lo <= 0.05") -eq 1 ]           ||
-    [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]
-then
+if ((vpct_new >= vpct_max)) ||
+    ((total_tasks == num_run)) ||
+    ((vpct_curr < vpct_min)) ||
+    ((num_upload > 0)) ||
+    [ $(bc <<<"$frac_hi >= 0.98") -eq 1 ] ||
+    [ $(bc <<<"$frac_lo <= 0.05") -eq 1 ] ||
+    [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
     incr_X="no"
 fi
 
@@ -551,15 +546,14 @@ change_X="no"
 if [ $status_only == "no" ]; then
     # Increment taskX one value...
     if ((vpct_curr < vpct_max)) && [ $incr_X == "yes" ] && [ $force_X == "no" ]; then
-        for x in $valid_Xs
-        do
+        for x in $valid_Xs; do
             if ((curr_X < x)); then
                 new_X=$x
                 gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-#                gpu_use=$(bc <<<"1 / $new_X")
+                #                gpu_use=$(bc <<<"1 / $new_X")
                 change_X="yes"
-#                echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
-                break                            # Stop when first greater x is found.
+                #                echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
+                break # Stop when first greater x is found.
             elif ((curr_X >= x)); then
                 continue
             fi
@@ -567,15 +561,14 @@ if [ $status_only == "no" ]; then
 
     # decrement taskX one value...
     elif ((vpct_curr >= vpct_max)) && [ $force_X == "no" ]; then
-        for x in $reverse_Xs
-        do
+        for x in $reverse_Xs; do
             if ((curr_X > x)); then
                 new_X=$x
                 gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-#                gpu_use=$(bc <<<"1 / $new_X")
+                #                gpu_use=$(bc <<<"1 / $new_X")
                 change_X="yes"
-#                echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
-                break                           # Stop when first lesser x is found.
+                #                echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
+                break # Stop when first lesser x is found.
             elif ((curr_X <= x)); then
                 continue
             fi
@@ -585,7 +578,7 @@ if [ $status_only == "no" ]; then
     elif [ $force_X = "yes" ]; then
         change_X="yes"
         gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
-#        gpu_use=$(bc <<<"1 / $lowest_X")
+        #        gpu_use=$(bc <<<"1 / $lowest_X")
         echo "Task X of $curr_X is being reset to $lowest_X" | tee -a $log_file
     fi
 fi
@@ -593,20 +586,20 @@ fi
 ############################## Edit app_config.xml and issue change report ####################
 set -e
 
-old_use=$(bc <<<"scale=2; 1 / $curr_X")   # Used for stdout and logging.
+old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
 #old_use=$(bc <<<"1 / $curr_X")           # Used for stdout and logging.
 indent=$(printf ' %.0s' {1..16})
 taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
-sleep_factor=6                            # Pause script after task change to equilibrate system.
+sleep_factor=6 # Pause script after task change to equilibrate system.
 
 # Stream editor sed will change all <gpu_usage> values in app_config.xml.
 # app_config.xml edits are read into boinc-client by ${boinc_cmd} --read_cc_config.
 if [ $change_X = "yes" ] && [ $status_only = "no" ]; then
-#    sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
+    #    sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
-    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use"           | tee -a $log_file
+    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr, vram%+ready%:~${vpct_new}%" | tee -a $log_file
-    ${boinc_cmd} --read_cc_config 1> /dev/null   #boinc stdout "retval 0"
+    ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 #    sleep $((sleep_t * sleep_factor))
 #elif [ $change_X = "no" ]; then
 #    echo "Initial task multiple will not be changed because...
@@ -615,4 +608,3 @@ if [ $change_X = "yes" ] && [ $status_only = "no" ]; then
 #  or cannot extend task multiple beyond configured range,
 #  ...so final task multiple remains ${curr_X}X"
 fi
-
