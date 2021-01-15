@@ -109,8 +109,7 @@ do
     ((cycle++))
     ((yikes++))
     if (( cycle == 120 )); then
-        echo "This script $script can be stopped with CTRL+C. 
-        It executes $target every $1 seconds and reports every $mod minutes."
+        echo ">$script executes $target every $1 seconds and reports every $mod minutes. (CTRL+C to exit)<"
         echo
         echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
         printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"

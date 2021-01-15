@@ -95,11 +95,10 @@ gttpct() {
 # If need to test this script while the timer script is running, then comment out the statement:
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
 #  which is in the interval reporting section of the main body.
-#
 timer_script="taskXDF-timer"
 taskprocs_num=$(pgrep -c $timer_script)
 if ((taskprocs_num > 1)); then
-    task_pids=$(pgrep -i taskxdf)
+    task_pids=$(pgrep $timer_script)
     echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
     echo "Their process IDs are:"
     echo $task_pids
