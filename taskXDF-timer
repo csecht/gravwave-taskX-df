@@ -5,14 +5,11 @@
 #   make yourself a member of the boinc permissions group. $ sudo usermod -a -G boinc yourusername
 #   and be sure that the boinc group has write permission to the app_config file:
 #    -rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
-#  After adding yourself to the boinc group, a system reboot is needed
-#   for the new permissions to take effect.
+#  After adding yourself to the boinc group, a system reboot is needed for the new permissions to take effect.
 
-# The approach can sidestep the need for setting up a systemd .service and .timer, 
-#   but will need to manually launch this timer script on reboot.
-# Suggestion:   Run vramDF on a 300 to 600 sec interval, 
-#               run taskXDFt on a 60 sec interval, 
-#               run taskXDFmon on a 2 to 5 min interval.
+# Running a timer script can sidestep the need for setting up a systemd .service and .timer,
+#   but you will need to manually launch this timer script after each reboot.
+# TIP: Run taskXDF-timer on a 60 sec interval to get responsive task X changes.
 
 # Need to read $mod and log path, then create .log in case it is not present.
 . ./taskXDF.cfg
