@@ -93,12 +93,14 @@ gttpct() {
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
 # The pgrep pattern -i 'taskxdf' should match any expected name variants of the timer or main scripts.
 # If need to test this script while the timer script is running, then comment out the statement:
-## timer_uptime="$(ps --pid $(pgrep -i taskxdf) -o etimes | grep -o '[0-9]*')"
-#  that is in the interval reporting section of the main body.
-taskprocs_num=$(pgrep -ic taskxdf)
+## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
+#  which is in the interval reporting section of the main body.
+#
+timer_script="taskXDF-timer"
+taskprocs_num=$(pgrep -c $timer_script)
 if ((taskprocs_num > 1)); then
     task_pids=$(pgrep -i taskxdf)
-    echo "*** NOTICE: $taskprocs_num taskXDF process are running. More than one is not advised. ***"
+    echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
     echo "Their process IDs are:"
     echo $task_pids
     echo "You will receive process ID error messages as long as this continues..."
@@ -110,6 +112,14 @@ status_only="no"
 if [ "$1" == "--status" ]; then
     mod=1
     status_only="yes"
+    echo
+    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+    printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
+    echo -n "————————————————│————————│———————│——————│————————│———│"
+    echo "————————————————————————————————————————"
+elif [ -z "$1" ] || [ $1 == '--help' ]; then
+    echo "Use --status as argument to see current task and GPU metrics.
+    For automation of task multiplicities, use the timer script, ./taskXDF-timer --help"
 fi
 
 # The valid X list assumes there are UP TO five valid task multiples from  .cfg.
@@ -412,8 +422,7 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 
 # Need initial status report, so check how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
-#   The pgrep pattern -i 'taskxdf' should match any expected name variants of the timer or main scripts.
-timer_uptime="$(ps --pid $(pgrep -i taskxdf) -o etimes | grep -o '[0-9]*')"
+timer_uptime="$(ps --pid $(pgrep  $timer_script) -o etimes | grep -o '[0-9]*')"
 
 if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
     echo -n "$date $time │ " | tee -a $log_file
