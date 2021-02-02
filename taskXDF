@@ -34,7 +34,6 @@
 vgbtotal() {
     vGB_total=100
     for p in $amd_paths; do
-        # shellcheck disable=SC2086
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_tot=$(cat ${card_path}mem_info_vram_total)
         temp_tot=$(bc <<<"scale=2; $vm_tot / 1024^3")
@@ -218,18 +217,13 @@ while read f; do
     fi
 done <<<"$fracdone"
 
-# NOTE: When set -e is used, cannot use grep -c in place of | wc -l for counting
-# b/c when nothing is found, grep returns a non-zero stderr, causing set -e to exit
-# script even though grep returns "0".
+# NOTE: Cannot use grep -c in place of | wc -l for counting b/c when nothing is found,
+#   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
 total_tasks=$(wc -l <<<"$names")
-#num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
-#num_wait=$(grep 'scheduler state: preempted' <<<"$tasks" | wc -l)
-#num_upload=$(grep 'state: uploading' <<<"$tasks" | wc -l)
-#suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
-num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
-num_upload=$(grep -c 'state: uploading' <<<"$tasks")
-suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
+num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
+num_wait=$(grep 'scheduler state: preempted' <<<"$tasks" | wc -l)
+num_upload=$(grep 'state: uploading' <<<"$tasks" | wc -l)
+suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
 # Set current X if all is well.
 # Final forced exit point if all is not well (have run out of tasks).
@@ -244,6 +238,7 @@ sleep_factor=4
 if ((num_run == 0)); then
     if ((total_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check Boinc Manager. Exiting..." | tee -a $log_file
+        echo
         exit 0
     fi
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
@@ -253,14 +248,13 @@ if ((num_run == 0)); then
 
     tasks="$(${boinc_cmd} --get_tasks)"
     sleep 1
-#    num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
-    num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-
+    num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
     if ((num_run > 0)); then
         curr_X=$((num_run / num_gpu))
         echo "$num_run task(s) are running following task resumption." >>$log_file
     elif ((num_run == 0)); then
         echo "$(date "+%b %d %T") No tasks are running. Check Boinc Manager. Exiting..." | tee -a $log_file
+        echo
         exit 0
     fi
 
