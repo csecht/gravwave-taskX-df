@@ -17,7 +17,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-ver='0.4.1'
+version='0.5.0'
 
 
 blue='\x1b[1;38;5;33m'
@@ -30,7 +30,7 @@ if [ "$#" -ne 1 ] || [[ "$1" =~ help|about ]] || [[ "$1" =~ -[0-9] ]]; then
     A time interval, in seconds, for running the taskXDFt script is required,
     e.g., $0 60
 
-    This timer script provides continuous timed runs of the taskXDFt bash script.
+    This timer script provides continuous timed runs of the taskXDF bash script.
  
     A time interval of 0 (zero) provides a one-off status report from $target,
         otherwise a non-zero interval time provides interval reports and taskX adjustments. 
@@ -42,7 +42,7 @@ if [ "$#" -ne 1 ] || [[ "$1" =~ help|about ]] || [[ "$1" =~ -[0-9] ]]; then
 
     For explanation of interval data reported: $0 --header.
 
-    Version: $ver"
+    Version: $version"
     echo
     exit 0
 
