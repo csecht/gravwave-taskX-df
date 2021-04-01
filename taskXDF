@@ -285,7 +285,7 @@ if ((num_run == 0)); then
     fi
 
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-    echo -n "$(date "+%b %d %T") No tasks are running; trying to resume... " >>$log_file
+    echo -n "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
     echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
     sleep $((sleep_factor * sleep_t))
 
@@ -565,13 +565,15 @@ if ((num_wait >= 1)); then
     waitGB=${taskDFgb[$waitDF_hi]}
     newGB=$(bc <<<"$vGB_used + $waitGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
-# Calculate predicted VRAM% only if tasks are "Ready to start", i.e., $readyDF_hi is set.
-elif ((num_wait == 0)) && [[ $readyDF_hi ]]; then
+# Calculate predicted VRAM% only if tasks are "Ready to start" $readyDF_hi > 0.
+elif ((num_wait == 0)) && [ $(bc <<<"$frac_hi >= 0") -eq 1 ]; then
     readyGB=${taskDFgb[$readyDF_hi]}
     newGB=$(bc <<<"$vGB_used + $readyGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
-elif ((num_wait == 0)) && [[ ! $readyDF_hi ]]; then
-    vpct_new=0
+# When no tasks are Ready to start, frac_hi will be at default value 0.
+# Need to set vpct_new to max limit to prevent needless taskX increase.
+elif ((num_wait == 0)) && [ $(bc <<<"$frac_hi == 0") -eq 1 ]; then
+    vpct_new=100
 fi
 
 #vpct_new=$((vpct_new * 2))                  ## TESTING
