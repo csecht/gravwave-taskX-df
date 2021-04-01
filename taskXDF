@@ -578,6 +578,7 @@ fi
 
 #vpct_new=$((vpct_new * 2))                  ## TESTING
 #vpct_curr=$((vpct_curr * 3))                ## TESTING
+#echo "VPCT predicted: $vpct_new, VPCT limit: $vpct_max" >>$log_file
 
 # Supplemental conditions for when not to increase task X.
 #   Some of these variables are set in .cfg.
