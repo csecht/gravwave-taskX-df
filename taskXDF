@@ -257,7 +257,7 @@ fi
 
 # NOTE: Cannot use grep -c in place of | wc -l for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
-total_tasks=$(wc -l <<<"$names")
+num_all_tasks=$(wc -l <<<"$names")
 num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
 num_wait=$(grep 'scheduler state: preempted' <<<"$tasks" | wc -l)
 num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
@@ -278,18 +278,18 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 # Base level sleep_t is set in  .cfg.
 sleep_factor=4
 if ((num_run == 0)); then
-    if ((total_tasks == 0)); then
+    if ((num_all_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check Boinc Manager." | tee -a $log_file
         echo
         exit 0
     fi
 
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-    echo -n "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
+    echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
     echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
     sleep $((sleep_factor * sleep_t))
 
-    if ((total_tasks == num_uploaded)); then
+    if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
         echo "Your daily task limit may have been reached. Check BOINC Event log."
@@ -319,9 +319,9 @@ fi
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (force_X stays "no" for main body evaluation).
 force_X="no"
-if [[ ! "$valid_Xs" =~ $curr_X ]] && ((total_tasks > num_run)); then
+if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
     force_X="yes"
-    echo -n "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
+    echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
 fi
 
 # Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
@@ -336,7 +336,7 @@ fi
 #Current task multiple: ${curr_X}X
 #$num_run task(s) currently running.
 #$num_wait task(s) waiting to run.
-#$total_tasks task(s) total in queue." | tee -a $log_file
+#$num_all_tasks task(s) total in queue." | tee -a $log_file
 
 # Delta frequency (DF) of all tasks are later filtered for relevant tasks.
 while read name; do
@@ -475,7 +475,7 @@ timer_uptime="$(ps --pid $(pgrep  $timer_script) -o etimes | grep -o '[0-9]*')"
 
 if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
     echo -n "$date $time │ " | tee -a $log_file
-    printf "${pad}" "${total_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
+    printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
     # ..but need to remove font color escape codes from file text.
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
@@ -561,18 +561,21 @@ fi
 #   and convert to VRAM% so that anticipated % can be added to actual current %
 #   and used to evaluate VRAM% limits for incrementing X in the $incr_X test.
 vGB_used=$(vgbused)
+vpct_new=0
 if ((num_wait >= 1)); then
     waitGB=${taskDFgb[$waitDF_hi]}
     newGB=$(bc <<<"$vGB_used + $waitGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
-# Calculate predicted VRAM% only if tasks are "Ready to start" $readyDF_hi > 0.
-elif ((num_wait == 0)) && [ $(bc <<<"$frac_hi >= 0") -eq 1 ]; then
+# Calculate predicted VRAM% only if tasks are "Ready to start" $readyDF_hi > 0 and
+#   tasks are running (frac_hi is not at stub value of 0) AND
+#   there are tasks Ready to start (readyDF_hi is not at stub value of 0).
+elif ((num_wait == 0)) &&
+    [ $(bc <<<"$frac_hi == 0") -eq 0 ] &&  # i.e. frac_hi=0 is False; no tasks Running.
+    [ $(bc <<<"$readyDF_hi == 0") -eq 0 ]; then  # i.e. readyDF_hi=0 is False.
     readyGB=${taskDFgb[$readyDF_hi]}
     newGB=$(bc <<<"$vGB_used + $readyGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
-# When no tasks are Ready to start, frac_hi will be at default value 0.
-# Need to set vpct_new to max limit to prevent needless taskX increase.
-elif ((num_wait == 0)) && [ $(bc <<<"$frac_hi == 0") -eq 1 ]; then
+elif [ $(bc <<<"$readyDF_hi == 0") -eq 1 ]; then # i.e. readyDF_hi=0 is True; no tasks Ready to start.
     vpct_new=100
 fi
 
@@ -591,7 +594,7 @@ fi
 #   Check for excessive GTT% when VRAM% is within its acceptable range.
 incr_X="yes"
 if ((vpct_new >= vpct_max)) ||
-    ((total_tasks == num_run)) ||
+    ((num_all_tasks == num_run)) ||
     ((vpct_curr < vpct_min)) ||
     ((num_uploading > 0)) ||
     [ $(bc <<<"$frac_hi >= 0.98") -eq 1 ] ||
@@ -640,7 +643,7 @@ if [ $status_only == "no" ]; then
         change_X="yes"
         gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
         #        gpu_use=$(bc <<<"1 / $lowest_X")
-        echo "Task X of $curr_X is being reset to $lowest_X" | tee -a $log_file
+        echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
     fi
 fi
 
