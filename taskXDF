@@ -277,7 +277,13 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 # Calculating X by num_run/num_gpu seems prone to errors from unaccounted BOINC or script conditions.
 # Base level sleep_t is set in  .cfg.
 sleep_factor=4
-if ((num_run == 0)); then
+if ((num_run > 0)); then
+    curr_X=$((num_run / num_gpu))
+    # Need to cover condition when only one task is running, but >1 GPU are available.
+    if ((curr_X == 0)); then
+        curr_X=1
+    fi
+elif ((num_run == 0)); then
     if ((num_all_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check Boinc Manager." | tee -a $log_file
         echo
@@ -307,9 +313,6 @@ if ((num_run == 0)); then
         echo
         exit 0
     fi
-
-elif ((num_run > 0)); then
-    curr_X=$((num_run / num_gpu))
 fi
 
 # Check whether current running task multiple is valid in case app_config.xml
@@ -578,7 +581,6 @@ elif ((num_wait == 0)) &&
 elif [ $(bc <<<"$readyDF_hi == 0") -eq 1 ]; then # i.e. readyDF_hi=0 is True; no tasks Ready to start.
     vpct_new=100
 fi
-
 #vpct_new=$((vpct_new * 2))                  ## TESTING
 #vpct_curr=$((vpct_curr * 3))                ## TESTING
 #echo "VPCT predicted: $vpct_new, VPCT limit: $vpct_max" >>$log_file
