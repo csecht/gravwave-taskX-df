@@ -317,13 +317,13 @@ fi
 
 # Check whether current running task multiple is valid in case app_config.xml
 #    was manually edited to a multiple not specified in  .cfg.
-# In the main body, $force_X = yes sets task X to lowest valid X.
+# In the main body, $minimize_X = yes sets task X to lowest valid X.
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
-#   so task multiple should not be changed (force_X stays "no" for main body evaluation).
-force_X="no"
+#   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
+minimize_X="no"
 if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
-    force_X="yes"
+    minimize_X="yes"
     echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
 fi
 
@@ -332,7 +332,7 @@ fi
 if ((num_run > 0)) && ((suspended_task > 0)); then
     echo
     echo "$(date "+%b %d %T") *** You have a task suspended; now lowering taskX... ***" | tee -a "$log_file"
-    force_X="yes"
+    minimize_X="yes"
 fi
 
 #echo "$num_gpu AMD card(s) recognized.
@@ -556,7 +556,7 @@ fi
 # If GTT% stays high, then set flag to change to lowest valid X.
 # The logic is to knock X down, let GTT settle, then re-increment X each cycle if possible.
 if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
-    force_X="yes"
+    minimize_X="yes"
     echo "$(date "+%b %d %T") GTT% of $gttpct_curr exceeds $gpct_max% limit." | tee -a $log_file
 fi
 
@@ -611,12 +611,11 @@ new_X=$curr_X
 change_X="no"
 if [ $status_only == "no" ]; then
     # Increment taskX one value...
-    if ((vpct_curr < vpct_max)) && [ $incr_X == "yes" ] && [ $force_X == "no" ]; then
+    if ((vpct_curr < vpct_max)) && [ $incr_X == "yes" ] && [ $minimize_X == "no" ]; then
         for x in $valid_Xs; do
             if ((curr_X < x)); then
                 new_X=$x
                 gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-                #                gpu_use=$(bc <<<"1 / $new_X")
                 change_X="yes"
                 #                echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
                 break # Stop when first greater x is found.
@@ -626,12 +625,11 @@ if [ $status_only == "no" ]; then
         done
 
     # decrement taskX one value...
-    elif ((vpct_curr >= vpct_max)) && [ $force_X == "no" ]; then
+    elif ((vpct_curr >= vpct_max)) && [ $minimize_X == "no" ]; then
         for x in $reverse_Xs; do
             if ((curr_X > x)); then
                 new_X=$x
                 gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-                #                gpu_use=$(bc <<<"1 / $new_X")
                 change_X="yes"
                 #                echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
                 break # Stop when first lesser x is found.
@@ -641,10 +639,9 @@ if [ $status_only == "no" ]; then
         done
 
     # or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
-    elif [ $force_X = "yes" ]; then
+    elif [ $minimize_X = "yes" ]; then
         change_X="yes"
         gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
-        #        gpu_use=$(bc <<<"1 / $lowest_X")
         echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
     fi
 fi
