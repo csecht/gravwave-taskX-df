@@ -531,7 +531,7 @@ fi
 sleep_factor=2
 if ((vpct_curr < vpct_min)); then
     echo -n "$(date "+%b %d %T") Pausing script $((sleep_factor * sleep_t)) sec:" | tee -a $log_file
-    echo " VRAM% $vpct_curr is below limit of $vpct_min" | tee -a $log_file
+    echo " VRAM% of $vpct_curr is below limit of $vpct_min" | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
 
     vpct_curr=$(vrampct)
