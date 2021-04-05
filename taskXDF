@@ -1,4 +1,5 @@
 #! /bin/bash
+# shellcheck disable=SC2126
 
 #     Copyright (C) 2021 C.S. Echt
 #
@@ -104,6 +105,20 @@ gttpct() {
     echo $gttpct_curr
 }
 
+# Function to play a double tone in PC external speakers; Used for notifications.
+notice_tone2() {
+    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+    sleep 1
+    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+}
+notice_tone3() {
+    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+    sleep 1
+    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+    sleep 1
+    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+}
+
 . ./taskXDF.cfg
 
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
@@ -195,8 +210,8 @@ if [[ ! $boinc_cmd ]]; then
     Exiting..."
     exit 1
 fi
-
-tasks="$(${boinc_cmd} --get_tasks)"
+# TODO: find out $tasks value when there are not tasks in queue. It is empty?
+tasks="$( ${boinc_cmd} --get_tasks )"
 
 # Parse task names from all queued tasks; used for calculating DF.
 names=$(echo "$tasks" | grep '   name' | sed 's/   name: //')
@@ -218,12 +233,16 @@ task_times=$(echo "$tasks" | grep 'current CPU time' | sed 's/   current CPU tim
 # A GW task, at any taskX, taking more than 25 min may have lost GPU processing.
 # Evaluate time only when tasks are running, else can't do the bc comparison.
 # Put statement here instead of below in "if ((num_run == 0))" to keep things tidy.
+# BOINC's auto-abort task time limit is 9032 seconds.
 # TODO: Auto-abort tasks running for too long b/c they can cause computation errors.
-if [[ $task_times ]]; then
+ttime_max=1500
+if [ "$task_times" != "" ]; then
+#if [[ $task_times ]]; then
     while read time; do
-        if [ $(bc <<<"$time > 1500") -eq 1 ]; then
+        if [ $(bc <<<"$time > $ttime_max") -eq 1 ]; then
             echo "$(date "+%b %d %T") NOTICE! There is a task taking more than 25m to complete."
             echo "It may need to be aborted."
+            notice_tone2
         fi
     done <<<"$task_times"
 fi
@@ -248,16 +267,22 @@ if [[ $fracdone ]]; then
             frac_lo=$tmpfrac
         fi
     done <<<"$fracdone"
-# elif [[ -z ${fracdone+x} ]]; then  # test for $fracdone being unset.
+# elif [ "$fracdone" == "" ]; then # test for $fracdone being unset.
 elif [[ ! $fracdone ]]; then  # test for $fracdone being unset.
     frac_hi=0.99
     frac_lo=0.01
 fi
 
 
+# Need to handle instance when no tasks are in queue b/c wc -l returns 1 for an empty "" $names;
+#   in that case num_all_tasks needs to be set to zero.
+num_all_tasks=0
+if [[ $names ]]; then
+  num_all_tasks=$(wc -l <<<"$names")
+fi
+
 # NOTE: Cannot use grep -c in place of | wc -l for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
-num_all_tasks=$(wc -l <<<"$names")
 num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
 num_wait=$(grep 'scheduler state: preempted' <<<"$tasks" | wc -l)
 num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
@@ -287,6 +312,7 @@ elif ((num_run == 0)); then
     if ((num_all_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check Boinc Manager." | tee -a $log_file
         echo
+        notice_tone3
         exit 0
     fi
 
@@ -295,10 +321,12 @@ elif ((num_run == 0)); then
     echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
     sleep $((sleep_factor * sleep_t))
 
+#   echo "Total tasks in queue: $num_all_tasks, Number ready to report: $num_uploaded"  # DEBUG#######################
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
         echo "Your daily task limit may have been reached. Check BOINC Event log."
+        notice_tone3
         sleep 90
     fi
 
@@ -311,6 +339,7 @@ elif ((num_run == 0)); then
     elif ((num_run == 0)); then
         echo "$(date "+%b %d %T") Still no tasks running. Check Boinc Manager." | tee -a $log_file
         echo
+        notice_tone3
         exit 0
     fi
 fi
@@ -510,6 +539,7 @@ if ((vpct_curr < vpct_min)); then
         if ((vpct_curr < vpct_min)); then
             echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below limit." | tee -a $log_file
             echo " Check Boinc Manager and settings in  .cfg." | tee -a $log_file
+            notice_tone2
         fi
     fi
 fi
