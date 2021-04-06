@@ -216,10 +216,10 @@ tasks="$( ${boinc_cmd} --get_tasks )"
 # Parse task names from all queued tasks; used for calculating DF.
 names=$(echo "$tasks" | grep '   name' | sed 's/   name: //')
 
-# Exit point. Script expects only task names with two search frequency values present.
+# Script works only on task names with two search frequency values present: GW tasks.
 if grep -qv "O2MDF" <<<"$names"; then
-    echo "I need O2MDF tasks to run. Exiting...." | tee -a $log_file
-    exit 0
+    echo "There are non-O2MDF tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
+    notice_tone2
 fi
 
 # Parse relevant lines from all tasks; used for eval of waiting, lookahead, or incrementing.
@@ -370,13 +370,19 @@ fi
 #$num_wait task(s) waiting to run.
 #$num_all_tasks task(s) total in queue." | tee -a $log_file
 
-# Delta frequency (DF) of all tasks are later filtered for relevant tasks.
+# Skip non-GW (non-O2MDF) tasks.
+# This regex will not match Gamma-ray pulsar search #5 task IDs.
+# Delta frequencies (DF) of all tasks are later filtered for relevant tasks.
 while read name; do
-    frequencies=$(grep -oE "[[:digit:]]+\\.[[:digit:]]{2}" <<<"$name")
-    f1=$(echo $frequencies | cut -d" " -f 1) # Do not quote $frequencies or use <<<$frequenciess.
-    f2=$(echo $frequencies | cut -d" " -f 2)
-    df=$(bc <<<"scale=2; $f2 - $f1")
-    allDFs="${allDFs}"$'\n'"$df" # First pass prepends a newline, same as $states.
+    if [[ $name =~ O2MDF ]]; then
+        frequencies=$(grep -oE "[[:digit:]]+\\.[[:digit:]]{2}" <<<"$name")
+        f1=$(echo $frequencies | cut -d" " -f 1) # Do not quote $frequencies or use <<<$frequencies.
+        f2=$(echo $frequencies | cut -d" " -f 2)
+        df=$(bc <<<"scale=2; $f2 - $f1")
+        allDFs="${allDFs}"$'\n'"$df" # First pass prepends a newline, same as $states.
+    else
+        continue
+    fi
 done <<<"$names"
 
 # Need to have relevant data from each task in one row. Lines in vars should be in register.
