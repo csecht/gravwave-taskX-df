@@ -106,6 +106,9 @@ gttpct() {
 }
 
 # Function to play a double tone in PC external speakers; Used for notifications.
+notice_tone1() {
+    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+}
 notice_tone2() {
     paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
     sleep 1
@@ -126,10 +129,11 @@ notice_tone3() {
 # If need to test this script while the timer script is running, then comment out the statement:
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
 #  which is in the interval reporting section of the main body.
-timer_script="taskXDF-timer"
+# The timer script path is defined in .cfg file.
 taskprocs_num=$(pgrep -c $timer_script)
 if ((taskprocs_num > 1)); then
     task_pids=$(pgrep $timer_script)
+    notice_tone2
     echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
     echo "Their process IDs are:"
     echo $task_pids
@@ -147,7 +151,7 @@ if [[ $1 == "--status" ]]; then
     printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
     echo -n "————————————————│————————│———————│——————│————————│———│"
     echo "————————————————————————————————————————"
-elif [[ ! $1 ]] || [[ $1 == '--help' ]]; then
+elif [[ ! $1 ]] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]]; then
     echo "Use --status as argument to see current task and GPU metrics.
     For automation of task multiplicities, use the timer script, ./taskXDF-timer --help"
 fi
@@ -171,6 +175,7 @@ if [[ "$valid_Xs" =~ [0.A-Za-z] ]] ||
     [[ $gpct_max =~ ^[0]|[A-Za-z] ]] ||
     [[ $sleep_t =~ ^[0]|[A-Za-z] ]] ||
     [[ $mod =~ ^[0]|[.A-Za-z] ]]; then
+    notice_tone2
     echo "Some values in .cfg file accept decimals, some accept only integers,
     but never just zero. None, except path names, accept letter characters.
     Edit the .cfg file. Exiting...." | tee -a $log_file
@@ -236,8 +241,8 @@ task_times=$(echo "$tasks" | grep 'current CPU time' | sed 's/   current CPU tim
 # BOINC's auto-abort task time limit is 9032 seconds.
 # TODO: Auto-abort tasks running for too long b/c they can cause computation errors.
 ttime_max=1500
-if [ "$task_times" != "" ]; then
-#if [[ $task_times ]]; then
+#if [ "$task_times" != "" ]; then
+if [[ $task_times ]]; then
     while read time; do
         if [ $(bc <<<"$time > $ttime_max") -eq 1 ]; then
             echo "$(date "+%b %d %T") NOTICE! There is a task taking more than 25m to complete."
