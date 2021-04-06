@@ -452,7 +452,9 @@ declare -A taskDFgb=([.10]=$df10 [.15]=$df15 [.20]=$df20 [.25]=$df25 [.30]=$df30
 # Default: 100 MB is the file size limit that triggers clearing its contents.
 # Provide data table header if starting with an empty file.
 logsize_lim=100
-size_log=$(du -0 -m $log_file | awk '{print $1}')
+if [[ -f $log_file ]]; then
+    size_log=$(du -0 -m $log_file | awk '{print $1}')
+fi
 if ((size_log >= logsize_lim)); then
     # NOTE: not tee -a option on printf, so notification will overwrite file.
     printf "\n*** The file $log_file was cleared because it reached $size_log. ***\n\n" | tee $log_file
