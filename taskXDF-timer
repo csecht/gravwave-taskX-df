@@ -17,7 +17,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.5.5'
+version='0.5.6'
 
 
 blue='\x1b[1;38;5;33m'
