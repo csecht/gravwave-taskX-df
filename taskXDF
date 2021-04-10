@@ -125,7 +125,6 @@ notice_tone3() {
 . ./taskXDF.cfg
 
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
-# The pgrep pattern -i 'taskxdf' should match any expected name variants of the timer or main scripts.
 # If need to test this script while the timer script is running, then comment out the statement:
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
 #  which is in the interval reporting section of the main body.
@@ -153,7 +152,7 @@ if [[ $1 == "--status" ]]; then
     echo "————————————————————————————————————————"
 elif [[ ! $1 ]] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]]; then
     echo "Use --status as argument to see current task and GPU metrics.
-    For automation of task multiplicities, use the timer script, ./taskXDF-timer --help"
+    For automation of task multiplicities, use the timer script. See ./taskXDF-timer --help"
 fi
 
 # The valid X list assumes there are UP TO five valid task multiples from  .cfg.
@@ -204,13 +203,14 @@ max_concurrent=$(echo $max_line | cut -d ">" -f2 | cut -d "<" -f1)
 max_num_tasks=$((num_gpu * highest_X))
 # Need to confirm whether <project_max_concurrent> is even set as an option in app_config.
 if [[ $max_line ]] && ((max_concurrent < max_num_tasks)); then
+    notice_tone1
     echo
     echo "HEADS UP! your app_config.xml <project_max_concurrent> setting of $max_concurrent
-    is lower than the maximum number of tasks, $max_num_tasks,
-    allowed by your number of GPUs, $num_gpu,
-    and your maximum X setting,$highest_X, in taskXDF.cfg.
-    Either raise the project_max or comment out the highest X value in taskXDF.cfg.
-    Otherwise task X will not raise when script reports it has been raised."
+    is lower than the potential maximum number of concurrent tasks, $max_num_tasks,
+    as determined by your maximum X setting,$highest_X, in taskXDF.cfg
+    and your number of crunching GPUs, $num_gpu.
+    You should raise the project_max or comment out the highest \$X value in taskXDF.cfg.
+    Otherwise task X will not increase when the script reports it was increased."
 fi
 
 # Need to first get boinc data on all tasks in queue so relevant tasks can be parsed.
