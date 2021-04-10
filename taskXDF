@@ -157,23 +157,22 @@ elif [[ ! $1 ]] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]]; then
 fi
 
 # The valid X list assumes there are UP TO five valid task multiples from  .cfg.
+# Need to trim trailing white space with xargs for when not all 5 Xs are defined.
 # The X list is used in main body to raise task multiples;
 #   reversed list used to lower task multiples.
-valid_Xs="$X1 $X2 $X3 $X4 $X5"
+# Highest X is used to check for limiting <project_max_concurrent> value.
+# Lowest X is used for emergency decrementing of task X.
+valid_Xs=$(echo "$X1 $X2 $X3 $X4 $X5" | xargs)
 reverse_Xs=$(echo "$valid_Xs" | rev)
-
-# The lowest X is used for emergency decrementing of task X.
-# Do not double quote $valid_Xs here.
-set -- $valid_Xs
-lowest_X=$1
-unset
+highest_X=$(echo "${valid_Xs: -2}") # -2 to account for trailing /n.
+lowest_X=$(echo "${valid_Xs::1}")
 
 # Exit point. Check for bad values from the .cfg file.
-if [[ "$valid_Xs" =~ [0.A-Za-z] ]] ||
+if [[ "$valid_Xs" =~ [0.A-Za-z] ]]    ||
     [[ $vpct_max =~ ^[0]|[.A-Za-z] ]] ||
     [[ $vpct_min =~ ^[0]|[.A-Za-z] ]] ||
-    [[ $gpct_max =~ ^[0]|[A-Za-z] ]] ||
-    [[ $sleep_t =~ ^[0]|[A-Za-z] ]] ||
+    [[ $gpct_max =~ ^[0]|[A-Za-z] ]]  ||
+    [[ $sleep_t =~ ^[0]|[A-Za-z] ]]   ||
     [[ $mod =~ ^[0]|[.A-Za-z] ]]; then
     notice_tone2
     echo "Some values in .cfg file accept decimals, some accept only integers,
@@ -196,6 +195,22 @@ num_gpu=$(wc -w <<<"$amd_paths")
 if [[ ! $amd_paths ]]; then
     echo "There are no active or recognized AMD cards. Exiting..." | tee -a $log_file
     exit 1
+fi
+
+# Need to determine whether app_config max_concurrent setting allows for max
+#   number of tasks specified by highest valid_Xs given the number of GPUs.
+max_line=$(grep project_max_concurrent "$app_path")
+# Need the number n from <project_max_concurrent>n</project_max_concurrent>
+max_concurrent=$(echo $max_line | cut -d ">" -f2 | cut -d "<" -f1)
+max_num_tasks=$((num_gpu * highest_X))
+if ((max_concurrent < max_num_tasks)); then
+    echo
+    echo "HEADS UP! your app_config.xml <project_max_concurrent> setting of $max_concurrent
+    is lower than the maximum number of tasks, $max_num_tasks,
+    allowed by your number of GPUs, $num_gpu,
+    and your maximum X setting,$highest_X, in taskXDF.cfg.
+    Either raise the project_max or comment out the highest X value in taskXDF.cfg.
+    Otherwise task X will not raise when script reports it has been raised."
 fi
 
 # Need to first get boinc data on all tasks in queue so relevant tasks can be parsed.
