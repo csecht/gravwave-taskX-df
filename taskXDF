@@ -200,10 +200,10 @@ fi
 # Need to determine whether app_config max_concurrent setting allows for max
 #   number of tasks specified by highest valid_Xs given the number of GPUs.
 max_line=$(grep project_max_concurrent "$app_path")
-# Need the number n from <project_max_concurrent>n</project_max_concurrent>
 max_concurrent=$(echo $max_line | cut -d ">" -f2 | cut -d "<" -f1)
 max_num_tasks=$((num_gpu * highest_X))
-if ((max_concurrent < max_num_tasks)); then
+# Need to confirm whether <project_max_concurrent> is even set as an option in app_config.
+if [[ $max_line ]] && ((max_concurrent < max_num_tasks)); then
     echo
     echo "HEADS UP! your app_config.xml <project_max_concurrent> setting of $max_concurrent
     is lower than the maximum number of tasks, $max_num_tasks,
