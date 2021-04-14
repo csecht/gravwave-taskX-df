@@ -300,11 +300,12 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 tmax_minute=$((ttime_max / 60))
 names_times=$(paste <(echo "$names") <(echo "$task_times"))
 # Abort a too-long running task only when tasks are running and none are waiting.
-# Read only the first line in $name_time list, which will be longest running task unless a task is waiting.
+# Need only the first line in $name_time list, which is longest running task (unless a task is waiting).
+# Even though 'paste' field separator is TAB, SPACE is what ends up in $names_times, hence cut -d ' '.
 if [[ $task_times ]] && ((num_wait == 0)); then
     while read input; do
-        tname=$(echo $input | cut -d" " -f 1) # Do not quote $input or use <<<$input.
-        ttime=$(echo $input | cut -d" " -f 2)
+        tname=$(echo $input | cut -d ' ' -f 1) # Do not quote $input or use <<<$input.
+        ttime=$(echo $input | cut -d ' ' -f 2)
         if [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
