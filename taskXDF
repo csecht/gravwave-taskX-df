@@ -250,25 +250,6 @@ schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler
 fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 task_times=$(echo "$tasks" | grep 'current CPU time' | sed 's/   current CPU time: //')
 
-# A GW task, at any taskX, taking more than 25 min may have lost GPU processing.
-# Evaluate time only when tasks are running, else can't do the bc comparison.
-# Put statement here instead of below in "if ((num_run == 0))" to keep things tidy.
-# BOINC's auto-abort task time limit is 9032 seconds.
-# ttime_max, in seconds, is defined in .cfg.
-# TODO: Auto-abort tasks running for too long b/c they can cause computation errors.
-tmax_minute=$((ttime_max * 60))
-#if [ "$task_times" != "" ]; then
-if [[ $task_times ]]; then
-    while read time; do
-        if [ $(bc <<<"$time > $ttime_max") -eq 1 ]; then
-            echo "$(date "+%b %d %T") NOTICE! There is a task taking more than $tmax_minute m to complete." | tee -a $log_file
-            echo "It may need to be aborted."
-            notice_tone2
-            break
-        fi
-    done <<<"$task_times"
-fi
-
 # Need to get the  highest progressed running task, b/c a card with a task at 99% completion
 #   or at the CPU transition stage may have a lower than needed VRAM% for running that task.
 #  A task that has just begun will not have brought VRAM% up to its running 'speed', so
@@ -311,6 +292,30 @@ num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
 num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
+# TRIAL
+# A GW task, at any taskX, taking longer than expected may have lost GPU processing.
+# Evaluate time only when tasks are running, else can't do the bc comparison.
+# BOINC's auto-abort task time limit is 9032 seconds.
+# ttime_max, in seconds, is defined in .cfg.
+tmax_minute=$((ttime_max / 60))
+names_times=$(paste <(echo "$names") <(echo "$task_times"))
+
+# Abort a too-long running task only when tasks are running and none are waiting.
+# Read only the first line in $name_time list, which will be longest running task unless a task is waiting.
+if [[ $task_times ]] && ((num_wait == 0)); then
+    while read input; do
+        tname=$(echo $input | cut -d" " -f 1)
+        ttime=$(echo $input | cut -d" " -f 2)
+        if [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
+            echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
+            echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
+            echo "    It will be aborted." | tee -a $log_file
+            notice_tone2
+            ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${tname} abort
+        fi
+    break
+    done <<<"$names_times"
+fi
 
 # Set current X if all is well; reset or update Project if not.
 # If all tasks are waiting to upload for some reason, update the Project in attempt
