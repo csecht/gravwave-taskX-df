@@ -299,21 +299,24 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 # ttime_max, in seconds, is defined in .cfg.
 tmax_minute=$((ttime_max / 60))
 names_times=$(paste <(echo "$names") <(echo "$task_times"))
-# Abort a too-long running task only when tasks are running and none are waiting.
-# Need only the first line in $name_time list, which is longest running task (unless a task is waiting).
+# Abort a too-long running task only when tasks are running (there is a 'current CPU time').
+#   Abort only one too-long task each script cycle, hence break.
 # Even though 'paste' field separator is TAB, SPACE is what ends up in $names_times, hence cut -d ' '.
-if [[ $task_times ]] && ((num_wait == 0)); then
+time_re='^[0-9]+([.][0-9]+)?$'
+if [[ $task_times ]]; then
     while read input; do
         tname=$(echo $input | cut -d ' ' -f 1) # Do not quote $input or use <<<$input.
         ttime=$(echo $input | cut -d ' ' -f 2)
-        if [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
+        # Not all tasks in $names_times have a 'current CPU time' ($task_times), so eval only those that do.
+        if [[ $ttime =~ $time_re ]] && [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
             echo "    It will be aborted." | tee -a $log_file
             ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${tname} abort
-            notice_tone2  # Need this built in pause here to allow time for boinccmd to execute.
+            sleep 2  # Need a pause to allow boinccmd to execute before exiting loop.
+            notice_tone2
+            break
         fi
-    break
     done <<<"$names_times"
 fi
 
