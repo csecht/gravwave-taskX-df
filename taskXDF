@@ -91,18 +91,33 @@ vrampct() {
 }
 
 # Function to calculate highest GTT used% among AMD card(s).
-gttpct() {
-    gttpct_curr=0
+gttpct_hi() {
+    gttpct_curr_hi=0
     for p in $amd_paths; do
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         gtt_used=$(cat ${card_path}mem_info_gtt_used)
         gtt_tot=$(cat ${card_path}mem_info_gtt_total)
         tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
-        if [ $(bc <<<"$tmp_gttpct_curr > $gttpct_curr") -eq 1 ]; then
-            gttpct_curr=$tmp_gttpct_curr
+        if [ $(bc <<<"$tmp_gttpct_curr > $gttpct_curr_hi") -eq 1 ]; then
+            gttpct_curr_hi=$tmp_gttpct_curr
         fi
     done
-    echo $gttpct_curr
+    echo $gttpct_curr_hi
+}
+
+# Function to calculate lowest GTT used% among AMD card(s).
+gttpct_lo() {
+    gttpct_curr_lo=100
+    for p in $amd_paths; do
+        card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
+        gtt_used=$(cat ${card_path}mem_info_gtt_used)
+        gtt_tot=$(cat ${card_path}mem_info_gtt_total)
+        tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
+        if [ $(bc <<<"$tmp_gttpct_curr < $gttpct_curr_lo") -eq 1 ]; then
+            gttpct_curr_lo=$tmp_gttpct_curr
+        fi
+    done
+    echo $gttpct_curr_lo
 }
 
 # Functions to play tones in PC external speakers; Used for notifications.
@@ -309,6 +324,7 @@ num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing.
+#   That card will probably have a GTT% of 0.
 # BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit.
 # ttime_max, in seconds, is defined in .cfg.
 tmax_minute=$((ttime_max / 60))
@@ -317,6 +333,7 @@ names_times=$(paste <(echo "$names") <(echo "$task_times"))
 #   Abort only one too-long task each script cycle, hence break.
 # Even though 'paste' field separator is TAB, SPACE is what ends up in $names_times, hence cut -d ' '.
 time_re='^[0-9]+([.][0-9]+)?$'
+gttpct_curr_lo=$(gttpct_lo)  # MONITORING: use this to test hypothesis that too-long task has 0% GTT.
 if [[ $task_times ]]; then
     while read input; do
         tname=$(echo $input | cut -d ' ' -f 1) # Do not quote $input or use <<<$input.
@@ -326,6 +343,7 @@ if [[ $task_times ]]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
             echo "    It will be aborted." | tee -a $log_file
+            echo "    The lowest GTT% among cards is: $gttpct_curr_lo."
             ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${tname} abort
             sleep 2  # Need a pause to allow boinccmd to execute before exiting loop.
             notice_tone2
@@ -537,7 +555,7 @@ fi
 # Call functions to get current memory stats.
 # $vGB_total is static, but put it here with the rest of the initial function calls.
 vpct_curr=$(vrampct)
-gttpct_curr=$(gttpct)
+gttpct_curr_hi=$(gttpct_hi)
 vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
@@ -548,7 +566,7 @@ vGB_total=$(vgbtotal)
 #mod=1  ## DEBUG
 tic=10#$(date +%M)
 taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
-gttpct_fmt=$(printf '%.2f' "$gttpct_curr")
+gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 date=$(date "+%b %d")
 time=$(date "+%T")
 # These escape codes will work with all ANSI/VT100 terminals and terminal emulators.
@@ -588,13 +606,13 @@ if ((vpct_curr < vpct_min)); then
     sleep $((sleep_factor * sleep_t))
 
     vpct_curr=$(vrampct)
-    gttpct_curr=$(gttpct)
+    gttpct_curr_hi=$(gttpct_hi)
     if ((vpct_curr < vpct_min)); then
         echo "$(date "+%b %d %T") Another pause of $sleep_t sec: VRAM% $vpct_curr is below limit of $vpct_min"
         sleep $sleep_t
 
         vpct_curr=$(vrampct)
-        gttpct_curr=$(gttpct)
+        gttpct_curr_hi=$(gttpct_hi)
         if ((vpct_curr < vpct_min)); then
             echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below limit." | tee -a $log_file
             echo " Check Boinc Manager and settings in  .cfg." | tee -a $log_file
@@ -610,23 +628,23 @@ fi
 # $sleep_t is set in  .cfg.
 #sleep_t=2  ##DEBUG
 sleep_factor=4
-if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); then
+if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
     echo -n "$(date "+%b %d %T") TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
-    echo " GTT% of $gttpct_curr is above limit of $gpct_max" | tee -a $log_file
+    echo " GTT% of $gttpct_curr_hi is above limit of $gpct_max" | tee -a $log_file
     sleep $sleep_t
 
     vpct_curr=$(vrampct)
-    gttpct_curr=$(gttpct)
-    if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
+    gttpct_curr_hi=$(gttpct_hi)
+    if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
         echo -n "$(date "+%b %d %T") Waiting another $sleep_t sec.;" >>$log_file
         echo " GTT% is still above $gpct_max" >>$log_file
         sleep $sleep_t
 
         vpct_curr=$(vrampct)
-        gttpct_curr=$(gttpct)
-        if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
-            echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr remains" >>$log_file
+        gttpct_curr_hi=$(gttpct_hi)
+        if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
+            echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr_hi remains" >>$log_file
             echo " above limit. Check gpct_max setting in  .cfg." >>$log_file
         fi
     fi
@@ -637,16 +655,16 @@ if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); the
     sleep $((sleep_factor * sleep_t))
 
     vpct_curr=$(vrampct)
-    gttpct_curr=$(gttpct)
-    echo -n "$(date "+%b %d %T") SCRIPT RESUMED. GTT% now $gttpct_curr;" | tee -a $log_file
+    gttpct_curr_hi=$(gttpct_hi)
+    echo -n "$(date "+%b %d %T") SCRIPT RESUMED. GTT% now $gttpct_curr_hi;" | tee -a $log_file
     echo " VRAM% now $vpct_curr." | tee -a $log_file
 fi
 
 # If GTT% stays high, then set flag to change to lowest valid X.
 # The logic is to knock X down, let GTT settle, then re-increment X each cycle if possible.
-if [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
+if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
     minimize_X="yes"
-    echo "$(date "+%b %d %T") GTT% of $gttpct_curr exceeds $gpct_max% limit." | tee -a $log_file
+    echo "$(date "+%b %d %T") GTT% of $gttpct_curr_hi exceeds $gpct_max% limit." | tee -a $log_file
 fi
 
 # Need to get GB from highest DF of waiting or next ready task
@@ -690,7 +708,7 @@ if ((vpct_new >= vpct_max)) ||
     ((num_uploading > 0)) ||
     [ $(bc <<<"$frac_hi >= 0.98") -eq 1 ] ||
     [ $(bc <<<"$frac_lo <= 0.05") -eq 1 ] ||
-    [ $(bc <<<"$gttpct_curr >= $gpct_max") -eq 1 ]; then
+    [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
     incr_X="no"
 fi
 
@@ -756,7 +774,7 @@ if [ $change_X = "yes" ] && [ $status_only = "no" ]; then
 #    sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
-    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr, vram%+ready%:~${vpct_new}%" | tee -a $log_file
+    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 #    sleep $((sleep_t * sleep_factor))
 #elif [ $change_X = "no" ]; then
