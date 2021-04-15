@@ -105,22 +105,38 @@ gttpct() {
     echo $gttpct_curr
 }
 
-# Function to play a double tone in PC external speakers; Used for notifications.
+# Functions to play tones in PC external speakers; Used for notifications.
+# Distros like Arch Linux, Gentoo, Lubuntu, may not have PulseAudio package installed,
+#    so need to check whether paplay command exists.
+# Currently only works for Ubuntu systems.
+# TODO: Access default sound files for all Linux distros.
+# sleep is to give time for paplay to execute successive tones.
+playsound=$(command -v paplay)
+sound_path='/usr/share/sounds/ubuntu/stereo/message-new-instant.ogg'
+release=$(cat /etc/*-release)
+valid_distro='Ubuntu'
 notice_tone1() {
-    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+    if [[ $playsound ]] && [[ $release =~ $valid_distro ]]; then
+        ${playsound} ${sound_path}
+    fi
 }
 notice_tone2() {
-    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
-    sleep 1
-    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+    if [[ $playsound ]] && [[ $release =~ $valid_distro ]]; then
+        ${playsound} ${sound_path}
+        sleep 1
+        ${playsound} ${sound_path}
+    fi
 }
 notice_tone3() {
-    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
-    sleep 1
-    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
-    sleep 1
-    paplay /usr/share/sounds/ubuntu/stereo/message-new-instant.ogg
+    if [[ $playsound ]] && [[ $release =~ $valid_distro ]]; then
+        ${playsound} ${sound_path}
+        sleep 1
+        ${playsound} ${sound_path}
+        sleep 1
+        ${playsound} ${sound_path}
+    fi
 }
+
 
 . ./taskXDF.cfg
 
@@ -292,10 +308,8 @@ num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
 num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
-# TRIAL
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing.
-# Evaluate time only when tasks are running, else can't do the bc comparison.
-# BOINC's auto-abort task time limit is 9032 seconds.
+# BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit.
 # ttime_max, in seconds, is defined in .cfg.
 tmax_minute=$((ttime_max / 60))
 names_times=$(paste <(echo "$names") <(echo "$task_times"))
