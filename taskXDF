@@ -325,26 +325,24 @@ num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
 num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
-# A GW task, at any taskX, taking longer than expected may have lost GPU processing.
-#   That card will probably have a GTT% of 0.
+# A GW task, at any taskX, taking longer than expected may have lost GPU processing and may give compute error.
 # BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit.
 # ttime_max, in seconds, is defined in .cfg.
-# Abort a too-long running task only when tasks are running (there is a 'current CPU time').
-#   Abort only one too-long task each script cycle, hence break.
 activetasks="$( ${boinc_cmd} --get_simple_gui_info )"
 # Need to specify name lines for GW tasks only, not other "name:" lines in output.
 activenames=$(echo "$activetasks" | grep '   name: h1_' | sed 's/   name: //')
 activetimes=$(echo "$activetasks" | grep 'current CPU time' | sed 's/   current CPU time: //')
 names_times=$(paste <(echo "$activenames") <(echo "$activetimes"))
-time_re='^[0-9]+([.][0-9]+)?$'
+time_regex='^[0-9]+([.][0-9]+)?$'  # Probably not needed with --get_simple_gui_info and accurate paste.
 tmax_minute=$((ttime_max / 60))
+# Abort a too-long running task only when tasks are running (there is a 'current CPU time').
+#   Abort only one too-long task each script cycle, hence break.
 # Even though 'paste' field separator is TAB, SPACE is what ends up in $names_times, hence cut -d ' '.
 if [[ $activetimes ]]; then
     while read input; do
         tname=$(echo $input | cut -d ' ' -f 1) # Do not quote $input or use <<<$input.
         ttime=$(echo $input | cut -d ' ' -f 2)
-        # Not all tasks in $names_times have a 'current CPU time' ($task_times), so eval only those that do.
-        if [[ $ttime =~ $time_re ]] && [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
+        if [[ $ttime =~ $time_regex ]] && [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
             echo "    It will be aborted." | tee -a $log_file
