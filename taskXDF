@@ -344,11 +344,11 @@ if [[ $activetimes ]]; then
         tname=$(echo $input | cut -d ' ' -f 1) # Do not quote $input or use <<<$input.
         ttime=$(echo $input | cut -d ' ' -f 2)
         # Not all tasks in $names_times have a 'current CPU time' ($task_times), so eval only those that do.
-        if [[ $ttime =~ $time_re ]] && [ $(bc <<<"$ttime < $ttime_max") -eq 1 ]; then
+        if [[ $ttime =~ $time_re ]] && [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
             echo "    It will be aborted." | tee -a $log_file
-            echo "${boinc_cmd} --task http://einstein.phys.uwm.edu/ $tname abort"
+            ${boinc_cmd} --task http://einstein.phys.uwm.edu/ $tname abort
             sleep 2  # Need a pause to allow boinccmd to execute before exiting loop.
             notice_tone2
             break
