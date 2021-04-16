@@ -123,32 +123,37 @@ gttpct_lo() {
 # Functions to play tones in PC external speakers; Used for notifications.
 # Distros like Arch Linux, Gentoo, Lubuntu, may not have PulseAudio package installed,
 #    so need to check whether paplay command exists.
-# Currently only works for Ubuntu systems.
-# TODO: Access default sound files for all Linux distros.
-# sleep is to give time for paplay to execute successive tones.
+# source: https://askubuntu.com/questions/277215/how-to-make-a-sound-once-a-process-is-complete
 playsound=$(command -v paplay)
-sound_path='/usr/share/sounds/ubuntu/stereo/message-new-instant.ogg'
-release=$(cat /etc/*-release)
-valid_distro='Ubuntu'
+sound_path='/usr/share/sounds/freedesktop/stereo/complete.oga'
+# Also use sound that should work in any Linux distro bash.
+# printf '/a' & echo -en '\007' source: https://stackoverflow.com/questions/1143386/in-a-bash-script-command-how-can-i-make-a-pc-beep-noise-or-play-a-sound-file
+# sleep is to give time to execute successive tones.
 notice_tone1() {
-    if [[ $playsound ]] && [[ $release =~ $valid_distro ]]; then
-        ${playsound} ${sound_path}
+    printf '\a'
+    sleep 0.6
+    if [[ $playsound ]]; then
+        paplay $sound_path
     fi
 }
 notice_tone2() {
-    if [[ $playsound ]] && [[ $release =~ $valid_distro ]]; then
-        ${playsound} ${sound_path}
-        sleep 1
-        ${playsound} ${sound_path}
+    printf '\a'
+    sleep 0.6
+    printf '\a'
+    sleep 0.6
+    if [[ $playsound ]]; then
+        paplay $sound_path
     fi
 }
 notice_tone3() {
-    if [[ $playsound ]] && [[ $release =~ $valid_distro ]]; then
-        ${playsound} ${sound_path}
-        sleep 1
-        ${playsound} ${sound_path}
-        sleep 1
-        ${playsound} ${sound_path}
+    printf '\a'
+    sleep 0.6
+    printf '\a'
+    sleep 0.6
+    printf '\a'
+    sleep 0.6
+    if [[ $playsound ]]; then
+        paplay $sound_path
     fi
 }
 
@@ -327,12 +332,12 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 #   That card will probably have a GTT% of 0.
 # BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit.
 # ttime_max, in seconds, is defined in .cfg.
-tmax_minute=$((ttime_max / 60))
-names_times=$(paste <(echo "$names") <(echo "$task_times"))
 # Abort a too-long running task only when tasks are running (there is a 'current CPU time').
 #   Abort only one too-long task each script cycle, hence break.
 # Even though 'paste' field separator is TAB, SPACE is what ends up in $names_times, hence cut -d ' '.
+names_times=$(paste <(echo "$names") <(echo "$task_times"))
 time_re='^[0-9]+([.][0-9]+)?$'
+tmax_minute=$((ttime_max / 60))
 gttpct_curr_lo=$(gttpct_lo)  # MONITORING: use this to test hypothesis that too-long task has 0% GTT.
 if [[ $task_times ]]; then
     while read input; do
@@ -343,7 +348,7 @@ if [[ $task_times ]]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
             echo "    It will be aborted." | tee -a $log_file
-            echo "    The lowest GTT% among cards is: $gttpct_curr_lo."
+            echo "    The lowest GTT% among cards is: $gttpct_curr_lo." | tee -a $log_file
             ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${tname} abort
             sleep 2  # Need a pause to allow boinccmd to execute before exiting loop.
             notice_tone2
