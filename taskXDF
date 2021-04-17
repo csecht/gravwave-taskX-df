@@ -185,9 +185,10 @@ if [[ $1 == "--status" ]]; then
     printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
     echo -n "————————————————│————————│———————│——————│————————│———│"
     echo "————————————————————————————————————————"
-elif [[ ! $1 ]] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]]; then
+elif [[ ! $1 ]] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9]+ ]]; then
     echo "Use --status as argument to see current task and GPU metrics.
     For automation of task multiplicities, use the timer script. See ./taskXDF-timer --help"
+    exit
 fi
 
 # The valid X list assumes there are UP TO five valid task multiples from  .cfg.
@@ -346,8 +347,9 @@ if [[ $activetimes ]]; then
             echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
             echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
             echo "    It will be aborted." | tee -a $log_file
+            echo "    The task abort time limit, ttime_max, is set in taskXDF.cfg."
             ${boinc_cmd} --task http://einstein.phys.uwm.edu/ $tname abort
-            sleep 2  # Need a pause to allow boinccmd to execute before exiting loop.
+            #sleep 2  # Need a pause?
             notice_tone2
             break
         fi
@@ -580,10 +582,12 @@ nc='\033[0m'
 # queued │ VRAM% │ GTT% │ taskGB │
 pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 
-# Need initial status report, so check how long timer script has been running, in seconds,
+# Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
-timer_uptime="$(ps --pid $(pgrep  $timer_script) -o etimes | grep -o '[0-9]*')"
-
+timer_pid=$(pgrep  $timer_script)
+if [[ $timer_pid ]]; then
+    timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
+fi
 if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
     echo -n "$date $time │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file

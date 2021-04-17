@@ -17,7 +17,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.5.10'
+version='0.5.11'
 
 
 blue='\x1b[1;38;5;33m'
@@ -25,7 +25,7 @@ orng='\x1b[0;38;5;202m'
 brn='\033[0;33m'
 nc='\033[0m'
 
-if [ "$#" -ne 1 ] || [[ $1 =~ -h ]] || [[ $1 =~ -[0-9] ]]; then
+if [ "$#" -ne 1 ] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]] ; then
     echo "
     A time interval, in seconds, for running the taskXDF-timer script is required,
     e.g., $0 60
