@@ -17,23 +17,23 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.5.11'
-
+version='0.5.12'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
 brn='\033[0;33m'
 nc='\033[0m'
 
-if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ [1-9] ]] ; then
+go=false
+if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ -[0-9] ]] ; then
     echo "
     A time interval, in seconds, for running the taskXDF-timer script is required,
     e.g., $0 60
 
     This timer script provides continuous timed runs of the taskXDF bash script.
- 
+
     A time interval of 0 (zero) provides a one-off status report from $target,
-        otherwise a non-zero interval time provides interval reports and taskX adjustments. 
+        otherwise a non-zero interval time provides interval reports and taskX adjustments.
 
     Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
         Einstein@Home O2MDF gravitational wave GPU tasks.
@@ -64,7 +64,7 @@ elif [[ $1 == '--header' ]]; then
     printf "${brn}'ready' is next task 'Ready to run', one listed for each active card.${nc}\n\n"
     exit 0
 
-elif [[ "$1" =~ [a-zA-Z] ]]; then
+elif [[ $1 =~ [a-zA-Z] ]]; then
     echo "Invalid parameter of \"$1\". Try: $0 --help"
     exit 0
 
@@ -78,6 +78,8 @@ elif (( $1 == 0 )); then
     echo "————————————————————————————————————————"
     /bin/bash ./$target --status
     exit 0
+else
+    go=true
 fi
 
 # Provide an initial information message when timer is started.
@@ -97,7 +99,7 @@ echo "————————————————————————�
 #   The reminder cycle interval, [ $count -eq 120 ], can be set to your liking.
 # Log file sizes greater than 20 MB (2 * 10**4) are emptied; set max size limit to your liking.
 cycle=0
-while true
+while [[ $go == 'true' ]]
 do
     /bin/bash ./$target --go
 
@@ -122,4 +124,3 @@ do
         exit 0
     fi
 done
-
