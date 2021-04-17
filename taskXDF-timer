@@ -25,7 +25,7 @@ orng='\x1b[0;38;5;202m'
 brn='\033[0;33m'
 nc='\033[0m'
 
-if [ "$#" -ne 1 ] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]] ; then
+if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ [1-9] ]] ; then
     echo "
     A time interval, in seconds, for running the taskXDF-timer script is required,
     e.g., $0 60
@@ -46,7 +46,7 @@ if [ "$#" -ne 1 ] || [[ $1 =~ -h ]] || [[ $1 =~ [0-9] ]] ; then
     echo
     exit 0
 
-elif [ "$1" == '--header' ]; then
+elif [[ $1 == '--header' ]]; then
     echo
     echo "Report header:"
     echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
@@ -68,8 +68,7 @@ elif [[ "$1" =~ [a-zA-Z] ]]; then
     echo "Invalid parameter of \"$1\". Try: $0 --help"
     exit 0
 
-#elif [ "$1" -eq 0 ]; then
-elif (( "$1" == 0 )); then
+elif (( $1 == 0 )); then
     echo "
     With a time interval of $1, $script is executed in status-only mode."
     echo
