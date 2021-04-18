@@ -17,12 +17,12 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.5.14'
+version='0.5.15'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
-brn='\033[0;33m'
-nc='\033[0m'
+brn='\x1b[0;33m'
+nc='\x1b[0m'
 
 go=false
 if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ -[0-9] ]] ; then
