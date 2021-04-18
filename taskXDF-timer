@@ -17,7 +17,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.5.12'
+version='0.5.14'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
@@ -41,6 +41,8 @@ if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ -[0-9] ]] ; then
     A log file of Terminal output is created in the current folder.
 
     For explanation of interval data reported: $0 --header.
+
+    Numerous script run parameters can be configured in the taskXDF.cfg text file.
 
     Version: $version"
     echo

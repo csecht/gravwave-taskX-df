@@ -186,8 +186,10 @@ if [[ $1 == "--status" ]]; then
     echo -n "————————————————│————————│———————│——————│————————│———│"
     echo "————————————————————————————————————————"
 elif [[ ! $1 ]] || [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then
+#elif [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then  # for TESTING
     echo "Use --status as argument to see current task and GPU metrics.
-    For automation of task multiplicities, use the timer script. See ./taskXDF-timer --help"
+    For automation of task multiplicities, use the timer script.
+    See ./taskXDF-timer --help for instructions and script version number."
     exit
 fi
 
@@ -326,35 +328,50 @@ num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
 num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
-# A GW task, at any taskX, taking longer than expected may have lost GPU processing and may give compute error.
-# BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit.
+#### Auto-Abort condition; toggled in taskXDF.cfg ######
+# A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
+# BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit here.
 # ttime_max, in seconds, is defined in .cfg.
-activetasks="$( ${boinc_cmd} --get_simple_gui_info )"
-# Need to specify name lines for GW tasks only, not other "name:" lines in output.
-activenames=$(echo "$activetasks" | grep '   name: h1_' | sed 's/   name: //')
-activetimes=$(echo "$activetasks" | grep 'current CPU time' | sed 's/   current CPU time: //')
-names_times=$(paste <(echo "$activenames") <(echo "$activetimes"))
-time_regex='^[0-9]+([.][0-9]+)?$'  # Probably not needed with --get_simple_gui_info and accurate paste.
+# Task elapsed times are stored only in client_state.xml (and client_state_prev.xml)
+# NOTE: checkpoint elapsed time will lag actual time by the checkpoint interval
+#   set in BoincManager Computing Preferences. Default is 60 sec.
+# $active_data will contain alternating lines of active(running) task names and their elapsed times.
+# Need to grab names and times between the <xml markup flags> and delete remaining >< boundary characters.
+client_state_path='/var/lib/boinc-client/client_state.xml'
+name_tag='h1_'
+time_regex='^[0-9]+([.][0-9]+)?$'
 tmax_minute=$((ttime_max / 60))
-# Abort a too-long running task only when tasks are running (there is a 'current CPU time').
-#   Abort only one too-long task each script cycle, hence break.
-# Even though 'paste' field separator is TAB, SPACE is what ends up in $names_times, hence cut -d ' '.
-if [[ $activetimes ]]; then
-    while read input; do
-        tname=$(echo $input | cut -d ' ' -f 1) # Do not quote $input or use <<<$input.
-        ttime=$(echo $input | cut -d ' ' -f 2)
-        if [[ $ttime =~ $time_regex ]] && [ $(bc <<<"$ttime > $ttime_max") -eq 1 ]; then
-            echo "$(date "+%b %d %T") NOTICE! Task $tname" | tee -a $log_file
-            echo "    is taking more than $tmax_minute m to complete." | tee -a $log_file
-            echo "    It will be aborted." | tee -a $log_file
-            echo "    The task abort time limit, ttime_max, is set in taskXDF.cfg."
-            ${boinc_cmd} --task http://einstein.phys.uwm.edu/ $tname abort
-            #sleep 2  # Need a pause?
-            notice_tone2
-            break
+active_data=$(grep 'result_name\|checkpoint_elapsed_time' <$client_state_path)
+active_data_trimmed=$(grep -Eo '>.+<' <<<"$active_data" | tr -d  \>\<)
+# Need to read line pairs and act on the first active task name-time pair with excessive elapsed time (in seconds).
+if [[ $active_data_trimmed ]]; then
+    while read line; do
+        if [[ $line =~ $name_tag ]]; then
+            activename=$line
+            continue
         fi
-    done <<<"$names_times"
+        if [[ $line =~ $time_regex ]] && [ $(bc <<<"$line > $ttime_max") -eq 1 ]; then
+            activetime=$line
+            elapsed_min=$((activetime / 60))
+            echo "$(date "+%b %d %T") NOTICE! Task $activename" | tee -a $log_file
+            echo "    is taking more than $tmax_minute min to complete " | tee -a $log_file
+            echo "       with an elapsed time of $elapsed_min min."  | tee -a $log_file
+            if [[ $auto_abort == yes ]]; then
+                echo "    IT WILL BE ABORTED." | tee -a $log_file
+                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${activename} abort
+                notice_tone3
+            elif [[ $auto_abort == no ]]; then
+                echo "    It may need to be aborted." | tee -a $log_file
+                notice_tone1
+            fi
+            echo "    The task time limit and auto-abort option can be configured in taskXDF.cfg."
+            break  # Stop evaluating task times after first too-long task is found (once per script cycle).
+        fi
+    done <<<"$active_data_trimmed"
+else
+    echo "Elapsed task times could not be read from $client_state_path."
 fi
+#### END Auto-Abort condition ######
 
 
 # Set current X if all is well; reset or update Project if not.
@@ -722,9 +739,9 @@ fi
 # Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
 new_X=$curr_X
 change_X="no"
-if [ $status_only == "no" ]; then
+if [[ $status_only == no ]]; then
     # Increment taskX one value...
-    if ((vpct_curr < vpct_max)) && [ $incr_X == "yes" ] && [ $minimize_X == "no" ]; then
+    if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; then
         for x in $valid_Xs; do
             if ((curr_X < x)); then
                 new_X=$x
@@ -738,7 +755,7 @@ if [ $status_only == "no" ]; then
         done
 
     # decrement taskX one value...
-    elif ((vpct_curr >= vpct_max)) && [ $minimize_X == "no" ]; then
+    elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
         for x in $reverse_Xs; do
             if ((curr_X > x)); then
                 new_X=$x
@@ -752,7 +769,7 @@ if [ $status_only == "no" ]; then
         done
 
     # or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
-    elif [ $minimize_X = "yes" ]; then
+    elif [[ $minimize_X = yes ]]; then
         change_X="yes"
         gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
         echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file

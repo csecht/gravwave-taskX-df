@@ -48,6 +48,10 @@ To keep taskX adjustments responsive to changing DFs of GW tasks, use a 60 secon
 
 A status report will display upon execution and list the current time. Subsequent reports will display according to the clock time intervals set by the 'mod' variable in the .cfg file. For example, if mod is 5 minutes, then a report will display at 10:05, 10:10, etc., even though the program started running at 10:03.
 
-
-
-
+Rarely, a GPU card running gravitation wave tasks will lose compute ability, thus
+delaying progress and, hours later, either time-out or exit with a 
+computation error. By default, this script provides a warning when a task takes 
+more than 960 seconds (16 minutes) to complete. This time can be set in the taskXDF.cfg file. 
+There an option in taskXDF.cfg to abort a too-long task; the default setting is
+auto_abort=no. You can change this to auto_abort=yes, but be sure to set a reasonable
+task time limit.
