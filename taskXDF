@@ -337,40 +337,40 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 #   set in BoincManager Computing Preferences. Default is 60 sec.
 # $active_data will contain alternating lines of active(running) task names and their elapsed times.
 # Need to grab names and times between the <xml markup flags> and delete remaining >< boundary characters.
-client_state_path='/var/lib/boinc-client/client_state.xml'
-name_tag='h1_'
-time_regex='^[0-9]+([.][0-9]+)?$'
-tmax_minute=$((ttime_max / 60))
-active_data=$(grep 'result_name\|checkpoint_elapsed_time' <$client_state_path)
-active_data_trimmed=$(grep -Eo '>.+<' <<<"$active_data" | tr -d  \>\<)
-# Need to read line pairs and act on the first active task name-time pair with excessive elapsed time (in seconds).
-if [[ $active_data_trimmed ]]; then
-    while read line; do
-        if [[ $line =~ $name_tag ]]; then
-            activename=$line
-            continue
-        fi
-        if [[ $line =~ $time_regex ]] && [ $(bc <<<"$line > $ttime_max") -eq 1 ]; then
-            activetime=$line
-            elapsed_min=$((activetime / 60))
-            echo "$(date "+%b %d %T") NOTICE! Task $activename" | tee -a $log_file
-            echo "    is taking more than $tmax_minute min to complete " | tee -a $log_file
-            echo "       with an elapsed time of $elapsed_min min."  | tee -a $log_file
-            if [[ $auto_abort == yes ]]; then
-                echo "    IT WILL BE ABORTED." | tee -a $log_file
-                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${activename} abort
-                notice_tone3
-            elif [[ $auto_abort == no ]]; then
-                echo "    It may need to be aborted." | tee -a $log_file
-                notice_tone1
-            fi
-            echo "    The task time limit and auto-abort option can be configured in taskXDF.cfg."
-            break  # Stop evaluating task times after first too-long task is found (once per script cycle).
-        fi
-    done <<<"$active_data_trimmed"
-else
-    echo "Elapsed task times could not be read from $client_state_path."
-fi
+#client_state_path='/var/lib/boinc-client/client_state.xml'
+#name_tag='h1_'
+#time_regex='^[0-9]+([.][0-9]+)?$'
+#tmax_minute=$((ttime_max / 60))
+#active_data=$(grep 'result_name\|checkpoint_elapsed_time' <$client_state_path)
+#active_data_trimmed=$(grep -Eo '>.+<' <<<"$active_data" | tr -d  \>\<)
+## Need to read line pairs and act on the first active task name-time pair with excessive elapsed time (in seconds).
+#if [[ $active_data_trimmed ]]; then
+#    while read line; do
+#        if [[ $line =~ $name_tag ]]; then
+#            activename=$line
+#            continue
+#        fi
+#        if [[ $line =~ $time_regex ]] && [ $(bc <<<"$line > $ttime_max") -eq 1 ]; then
+#            activetime=$line
+#            elapsed_min=$((activetime / 60))
+#            echo "$(date "+%b %d %T") NOTICE! Task $activename" | tee -a $log_file
+#            echo "    is taking more than $tmax_minute min to complete " | tee -a $log_file
+#            echo "       with an elapsed time of $elapsed_min min."  | tee -a $log_file
+#            if [[ $auto_abort == yes ]]; then
+#                echo "    IT WILL BE ABORTED." | tee -a $log_file
+#                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${activename} abort
+#                notice_tone3
+#            elif [[ $auto_abort == no ]]; then
+#                echo "    It may need to be aborted." | tee -a $log_file
+#                notice_tone1
+#            fi
+#            echo "    The task time limit and auto-abort option can be configured in taskXDF.cfg."
+#            break  # Stop evaluating task times after first too-long task is found (once per script cycle).
+#        fi
+#    done <<<"$active_data_trimmed"
+#else
+#    echo "Elapsed task times could not be read from $client_state_path."
+#fi
 #### END Auto-Abort condition ######
 
 
@@ -725,10 +725,10 @@ fi
 #   Check whether newly started tasks have progressed toward stable vram%.
 #   Check for excessive GTT% when VRAM% is within its acceptable range.
 incr_X="yes"
-if ((vpct_new >= vpct_max)) ||
-    ((num_all_tasks == num_run)) ||
-    ((vpct_curr < vpct_min)) ||
-    ((num_uploading > 0)) ||
+if ((vpct_new >= vpct_max))               ||
+    ((num_all_tasks == num_run))          ||
+    ((vpct_curr < vpct_min))              ||
+    ((num_uploading > 0))                 ||
     [ $(bc <<<"$frac_hi >= 0.98") -eq 1 ] ||
     [ $(bc <<<"$frac_lo <= 0.05") -eq 1 ] ||
     [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
@@ -780,7 +780,6 @@ fi
 set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
-#old_use=$(bc <<<"1 / $curr_X")           # Used for stdout and logging.
 indent=$(printf ' %.0s' {1..16})
 taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
 sleep_factor=6 # Pause script after task change to equilibrate system.
@@ -793,14 +792,14 @@ fi
 # Stream editor sed will change ALL <gpu_usage> values in app_config.xml.
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
 # $status_only is a command line option flag. $monitor_only is set in taskXDF.cfg.
-if [[ $change_X == yes ]] && [[ $status_only == no ]] && [[ $monitor_only == no ]]; then
+if [[ $change_X == yes ]] && [[ $status_only == no ]] && [[ $monitor_only == yes ]]; then
+    echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
+    echo "Script is running in monitor-only mode, as set in taskXDF.cfg file. Task X will not be changed."
+elif [[ $change_X == yes ]] && [[ $status_only == no ]] && [[ $monitor_only == no ]]; then
     # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
-elif [[ $change_X == yes ]] && [[ $status_only == no ]] && [[ $monitor_only == yes ]]; then
-    echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
-    echo "Script is running in monitor-only mode, as set in taskXDF.cfg file. Task X will not be changed."
 fi
