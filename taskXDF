@@ -128,6 +128,7 @@ playsound=$(command -v paplay)
 sound_path=('/usr/share/sounds/freedesktop/stereo/dialog-warning.oga')
 # Also use sound that should work in any Linux distro bash.
 # printf '/a' & echo -en '\007' source: https://stackoverflow.com/questions/1143386/in-a-bash-script-command-how-can-i-make-a-pc-beep-noise-or-play-a-sound-file
+# printf '/a' works with motherboard speaker, not external speakers.
 # sleep is to give time to execute successive tones.
 notice_tone1() {
     printf '\a'
@@ -138,20 +139,32 @@ notice_tone1() {
 }
 notice_tone2() {
     printf '\a'
-    sleep 0.6
+    sleep 1
     printf '\a'
-    sleep 0.6
+    sleep 1
+    if [[ $playsound ]]; then
+        $playsound $sound_path
+    fi
+    sleep 1
     if [[ $playsound ]]; then
         $playsound $sound_path
     fi
 }
 notice_tone3() {
     printf '\a'
-    sleep 0.6
+    sleep 1
     printf '\a'
-    sleep 0.6
+    sleep 1
     printf '\a'
-    sleep 0.6
+    sleep 1
+    if [[ $playsound ]]; then
+        $playsound $sound_path
+    fi
+    sleep 1
+    if [[ $playsound ]]; then
+        $playsound $sound_path
+    fi
+    sleep 1
     if [[ $playsound ]]; then
         $playsound $sound_path
     fi
@@ -176,8 +189,11 @@ fi
 
 # When need to just get the status report and not change taskX.
 # Script argument of --status is normally passed from timer script.
+# The --go tag is passed from taskXDF-timer so time interval value can be extracted.
 status_only="no"
-if [[ $1 == "--status" ]]; then
+if [[ $1 =~ --go ]]; then
+    interval_time=$(echo ${1#--go})
+elif [[ $1 == "--status" ]]; then
     mod=1
     status_only="yes"
     echo
@@ -189,7 +205,7 @@ elif [[ ! $1 ]] || [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then
 #elif [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then  # for TESTING
     echo "Use --status as argument to see current task and GPU metrics.
     For automation of task multiplicities, use the timer script.
-    See ./taskXDF-timer --help for instructions and script version number."
+    See ./taskXDF-timer --help for instructions and this script's version number."
     exit
 fi
 
@@ -210,7 +226,8 @@ if [[ "$valid_Xs" =~ [0.A-Za-z] ]]    ||
     [[ $vpct_min =~ ^[0]|[.A-Za-z] ]] ||
     [[ $gpct_max =~ ^[0]|[A-Za-z] ]]  ||
     [[ $sleep_t =~ ^[0]|[A-Za-z] ]]   ||
-    [[ $mod =~ ^[0]|[.A-Za-z] ]]; then
+    [[ $mod =~ ^[0]|[.A-Za-z] ]]      ||
+    [[ $ttime_max =~ ^[0]|[.A-Za-z ]]; then
     notice_tone2
     echo "Some values in .cfg file accept decimals, some accept only integers,
     but never just zero. None, except path names, accept letter characters.
@@ -328,50 +345,88 @@ num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
 num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
-#### Auto-Abort condition; toggled in taskXDF.cfg ######
+#### BEGIN Auto-Abort condition; toggled in taskXDF.cfg ############################################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
-# BOINC's auto-abort task time limit is 9032 seconds, but need a shorter time limit here.
-# ttime_max, in seconds, is defined in .cfg.
-# Task elapsed times are stored only in client_state.xml (and client_state_prev.xml)
-# NOTE: checkpoint elapsed time will lag actual time by the checkpoint interval
-#   set in BoincManager Computing Preferences. Default is 60 sec.
-# $active_data will contain alternating lines of active(running) task names and their elapsed times.
-# Need to grab names and times between the <xml markup flags> and delete remaining >< boundary characters.
-#client_state_path='/var/lib/boinc-client/client_state.xml'
-#name_tag='h1_'
-#time_regex='^[0-9]+([.][0-9]+)?$'
-#tmax_minute=$((ttime_max / 60))
-#active_data=$(grep 'result_name\|checkpoint_elapsed_time' <$client_state_path)
-#active_data_trimmed=$(grep -Eo '>.+<' <<<"$active_data" | tr -d  \>\<)
-## Need to read line pairs and act on the first active task name-time pair with excessive elapsed time (in seconds).
-#if [[ $active_data_trimmed ]]; then
-#    while read line; do
-#        if [[ $line =~ $name_tag ]]; then
-#            activename=$line
-#            continue
-#        fi
-#        if [[ $line =~ $time_regex ]] && [ $(bc <<<"$line > $ttime_max") -eq 1 ]; then
-#            activetime=$line
-#            elapsed_min=$((activetime / 60))
-#            echo "$(date "+%b %d %T") NOTICE! Task $activename" | tee -a $log_file
-#            echo "    is taking more than $tmax_minute min to complete " | tee -a $log_file
-#            echo "       with an elapsed time of $elapsed_min min."  | tee -a $log_file
-#            if [[ $auto_abort == yes ]]; then
-#                echo "    IT WILL BE ABORTED." | tee -a $log_file
-#                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${activename} abort
-#                notice_tone3
-#            elif [[ $auto_abort == no ]]; then
-#                echo "    It may need to be aborted." | tee -a $log_file
-#                notice_tone1
-#            fi
-#            echo "    The task time limit and auto-abort option can be configured in taskXDF.cfg."
-#            break  # Stop evaluating task times after first too-long task is found (once per script cycle).
-#        fi
-#    done <<<"$active_data_trimmed"
-#else
-#    echo "Elapsed task times could not be read from $client_state_path."
-#fi
-#### END Auto-Abort condition ######
+# Monitor how many script cycles (minutes) each task has run, and abort it if past the configured limit.
+# Need to be sure the file is there.
+touch ./currently_running_GWtasks.txt
+gravtask_file="./currently_running_GWtasks.txt"
+
+simple_gui_info="$( ${boinc_cmd} --get_simple_gui_info )"  # NOTE: includes uploading and waiting tasks.
+
+# Need to gather ALL active task names-active state pairs then save to file only names of Executing O2MDF tasks.
+# Need to skip over lines that have the '   name: ' tag until get to the ======== Tasks ======== section.
+# A task name will always be before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
+active_data=""
+task_section=no
+while read -r line; do
+    if [[ ! $line =~ '= Tasks =' ]]  && [[ $task_section == no ]]; then
+        continue
+    elif [[ $line =~ '= Tasks =' ]]; then
+        task_section=yes
+    elif [[ $task_section == yes ]] && [[ $line =~ ^name ]]; then
+        active_data="${active_data}"$'\n'"$line" # First pass prepends a newline.
+    elif [[ $task_section == yes ]] && [[ $line =~ active_task_state: ]]; then
+        active_data="${active_data}"$'\n'"$line"
+    fi
+done <<<"$simple_gui_info"
+
+# Save only GW (O2MDF) task names that are currently running (EXECUTING).
+gravtask_line=""
+while read -r line; do
+    if [[ $line =~ O2MDF ]]; then
+        gravtask_line=$line
+        continue
+    fi
+    # Need to determine whether paired active_task_state line following name line specifies a running task.
+    if [[ $gravtask_line =~ O2MDF ]] && [[ $line =~ EXECUTING ]]; then
+        gravtask_name=$(sed 's/name: //' <<<"$gravtask_line")
+        echo "$gravtask_name" >>"$gravtask_file"
+        running_names="${running_names}"$'\n'"$gravtask_name" # First pass prepends a newline.
+    fi
+done <<<"$active_data"
+sleep 0.5
+
+# $interval_time is passed as seconds from taskXDF-timer when timer script first starts
+# $ttime_max is passed as minutes from taskXDF.cfg.
+interval_minute=$((interval_time / 60))
+max_runningtask_count=$((ttime_max / interval_minute))
+
+# Need to set initial value of all tasks being new, then prove otherwise.
+all_tasks_new=yes
+# Need to evaluate only when there are running (EXECUTING) tasks.
+# Abort only 1 task per script cycle, hence 'break'
+if [[ $running_names ]]; then
+    while read -r name; do
+        [[ -z $name ]] && continue # Skip blank lines that will mess things up here.
+        runningtask_reps=$(grep -c $name $gravtask_file)
+        if ((runningtask_reps > max_runningtask_count)); then
+            echo "$(date "+%b %d %T") NOTICE! Task $name"              | tee -a $log_file
+            echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
+            if [[ $auto_abort == yes ]]; then
+                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
+#                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
+                notice_tone3
+                break
+            elif [[ $auto_abort == no ]]; then
+                echo "    It may need to be aborted."                  | tee -a $log_file
+                notice_tone1
+            fi
+        fi
+        #   Need to flag if any one task is still running since previous script cycle.
+        if ((runningtask_reps > 1)); then
+            all_tasks_new=no
+        fi
+    done <<<"$running_names"
+
+    # Need to reset $gravtask_file file with current running_names if current batch of running tasks are all new.
+    #   As long as any one task is still running since last script cycle, then file is not reset.
+    if [[ $all_tasks_new == yes ]] && [[ -s $gravtask_file ]]; then
+        echo "" >"$gravtask_file"
+        echo "$running_names" >"$gravtask_file"
+    fi
+fi
+#### END Auto-Abort condition ######################################################################
 
 
 # Set current X if all is well; reset or update Project if not.
@@ -409,7 +464,7 @@ elif ((num_run == 0)); then
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
-        echo "Your daily task limit may have been reached. Check BOINC Event log."
+        echo "Your daily task limit may have been reached. Check BOINC Event log."  | tee -a $log_file
         notice_tone3
         sleep 90
     fi
@@ -419,7 +474,7 @@ elif ((num_run == 0)); then
     num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
     if ((num_run > 0)); then
         curr_X=$((num_run / num_gpu))
-        echo "$num_run task(s) are running following task resumption or update." >>$log_file
+        echo "$num_run task(s) are running following task resumption or update."  | tee -a $log_file
     elif ((num_run == 0)); then
         echo "$(date "+%b %d %T") Still no tasks running. Check Boinc Manager." | tee -a $log_file
         echo

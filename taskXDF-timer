@@ -17,7 +17,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.5.16'
+version='0.6.0'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
@@ -94,17 +94,16 @@ printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
 echo -n "————————————————│————————│———————│——————│————————│———│"
 echo "————————————————————————————————————————"
 
-# Run continuously until manually stopped.
-# The --go argument is a dummy, needed b/c absence of an arg when executing taskXDF will trigger a help message.
-# Provide a reminder of how to stop once every 120 interval cycles of the main script.
+# Run continuously until manually stopped. Runs the taskXDF (target) bash script each cycle.
+# The --go argument is used as a tag so that time interval value can be passed to taskXDF for time calculations.
+# A reminder is provided for how to stop once every 120 interval cycles of the main script. (expect a 60 sec. cycle)
 # The actual number of status reports between reminders depends on the $mod setting in the -cfg file.
 #   The reminder cycle interval, [ $count -eq 120 ], can be set to your liking.
 # Log file sizes greater than 20 MB (2 * 10**4) are emptied; set max size limit to your liking.
 cycle=0
 while [[ $go == 'true' ]]
 do
-    /bin/bash ./$target --go
-
+    /bin/bash ./${target} --go${1}
     sleep ${1}
     ((cycle++))
     ((yikes++))
