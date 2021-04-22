@@ -405,7 +405,7 @@ if [[ $running_names ]]; then
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
             if [[ $auto_abort == yes ]]; then
                 echo "    IT WILL BE ABORTED."                         | tee -a $log_file
-#                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
+                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
                 notice_tone3
                 break
             elif [[ $auto_abort == no ]]; then
