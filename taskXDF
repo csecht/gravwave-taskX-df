@@ -134,7 +134,7 @@ notice_tone1() {
     printf '\a'
     sleep 0.6
     if [[ $playsound ]]; then
-        $playsound $sound_path
+        $playsound $sound_path 2> /dev/null
     fi
 }
 notice_tone2() {
@@ -143,11 +143,11 @@ notice_tone2() {
     printf '\a'
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path
+        $playsound $sound_path 2> /dev/null
     fi
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path
+        $playsound $sound_path 2> /dev/null
     fi
 }
 notice_tone3() {
@@ -158,15 +158,15 @@ notice_tone3() {
     printf '\a'
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path
+        $playsound $sound_path 2> /dev/null
     fi
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path
+        $playsound $sound_path 2> /dev/null
     fi
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path
+        $playsound $sound_path 2> /dev/null
     fi
 }
 
@@ -190,12 +190,17 @@ fi
 # When need to just get the status report and not change taskX.
 # Script argument of --status is normally passed from timer script.
 # The --go tag is passed from taskXDF-timer so time interval value can be extracted.
-status_only="no"
+status_only=no
 if [[ $1 =~ --go ]]; then
     interval_time=$(echo ${1#--go})
-elif [[ $1 == "--status" ]]; then
+elif [[ $1 =~ --status ]]; then
+    status_only=yes
+    # Need to over-ride configurations in taskXDF.cfg to avoid errors and unwanted actions.
     mod=1
-    status_only="yes"
+    auto_abort=no
+    interval_time=60
+    ttime_max=60
+    # After printing headers here, script runs the initial report (in main eval body) then exits.
     echo
     echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
     printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
@@ -288,12 +293,14 @@ fi
 # TODO: find out $tasks value when there are not tasks in queue. It is empty?
 tasks="$( ${boinc_cmd} --get_tasks )"
 # Parse task names from all queued tasks; used for calculating DF.
-names=$(echo "$tasks" | grep '   name' | sed 's/   name: //')
+names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 
 # Script works only on task names with two search frequency values present: GW tasks.
 if grep -qv "O2MDF" <<<"$names"; then
     echo "There are non-O2MDF tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
-    notice_tone2
+    if [[ $status_only == no ]]; then
+        notice_tone2
+    fi
 fi
 
 # Parse relevant lines from all tasks; used for eval of waiting, lookahead, or incrementing.
@@ -354,37 +361,25 @@ gravtask_file="./currently_running_GWtasks.txt"
 
 simple_gui_info="$( ${boinc_cmd} --get_simple_gui_info )"  # NOTE: includes uploading and waiting tasks.
 
-# Need to gather ALL active task names-active state pairs then save to file only names of Executing O2MDF tasks.
-# Need to skip over lines that have the '   name: ' tag until get to the ======== Tasks ======== section.
-# A task name will always be before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
-active_data=""
-task_section=no
-while read -r line; do
-    if [[ ! $line =~ '= Tasks =' ]]  && [[ $task_section == no ]]; then
-        continue
-    elif [[ $line =~ '= Tasks =' ]]; then
-        task_section=yes
-    elif [[ $task_section == yes ]] && [[ $line =~ ^name ]]; then
-        active_data="${active_data}"$'\n'"$line" # First pass prepends a newline.
-    elif [[ $task_section == yes ]] && [[ $line =~ active_task_state: ]]; then
-        active_data="${active_data}"$'\n'"$line"
-    fi
-done <<<"$simple_gui_info"
-
+# A task name will always be read before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
 # Save only GW (O2MDF) task names that are currently running (EXECUTING).
 gravtask_line=""
+gravtask_name=""
 while read -r line; do
-    if [[ $line =~ O2MDF ]]; then
+    if [[ $line =~ ^name.*O2MDF ]]; then
         gravtask_line=$line
         continue
     fi
-    # Need to determine whether paired active_task_state line following name line specifies a running task.
+    # Need to determine whether paired active_task_state line following name line specifies that it is a running task.
     if [[ $gravtask_line =~ O2MDF ]] && [[ $line =~ EXECUTING ]]; then
         gravtask_name=$(sed 's/name: //' <<<"$gravtask_line")
         echo "$gravtask_name" >>"$gravtask_file"
         running_names="${running_names}"$'\n'"$gravtask_name" # First pass prepends a newline.
+        # Need to clear task data to ensure GW tasks are paired with their own active states.
+        gravtask_line=""
+        gravtask_name=""
     fi
-done <<<"$active_data"
+done <<<"$simple_gui_info"
 sleep 0.5
 
 # $interval_time is passed as seconds from taskXDF-timer when timer script first starts
@@ -404,12 +399,16 @@ if [[ $running_names ]]; then
             echo "$(date "+%b %d %T") NOTICE! Task $name"              | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
             if [[ $auto_abort == yes ]]; then
-                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
-                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
+#                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
+                echo "    IT WILL BE SUSPENDED for 10 sec."           | tee -a $log_file
+#                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
+                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} suspend
+                sleep 10
+                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} resume
                 notice_tone3
                 break
             elif [[ $auto_abort == no ]]; then
-                echo "    It may need to be aborted."                  | tee -a $log_file
+                echo "    It may need to be suspended or perhaps aborted." | tee -a $log_file
                 notice_tone1
             fi
         fi
@@ -455,6 +454,7 @@ elif ((num_run == 0)); then
         exit 0
     fi
 
+    # NOTE: This will run also when user has manually suspended all tasks.
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
     echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
     echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
@@ -654,6 +654,7 @@ nc='\033[0m'
 # queued │ VRAM% │ GTT% │ taskGB │
 pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 
+#### INITIAL REPORT used for startup and status_only == yes condition.
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
 timer_pid=$(pgrep  $timer_script)
@@ -667,6 +668,12 @@ if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
     # ..but need to remove font color escape codes from file text.
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
+
+# Need to stop here if --status argument was evoked to execute script.
+if [[ $status_only == yes ]]; then
+    exit
+fi
+
 ############################ End reporting of interval metrics. ####################################
 
 # When a gpu is @1X and a task has just begun running
@@ -699,7 +706,7 @@ if ((vpct_curr < vpct_min)); then
     fi
 fi
 
-# Suspend tasks for short time to remove GTT memory i/o bottleneck.
+# Suspend tasks for short time to remove GTT memory I/O bottleneck.
 #   After tasks resume, script pauses to allow card memory usage to equilibrate.
 # Condition is expected to run only after task X decrements in the previous script cycle.
 # Previous task X decrement to lowest X should lower GTT% enough to avoid suspension.
@@ -708,7 +715,7 @@ fi
 sleep_factor=4
 if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
-    echo -n "$(date "+%b %d %T") TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
+    echo -n "$(date "+%b %d %T") ALL TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
     echo " GTT% of $gttpct_curr_hi is above limit of $gpct_max" | tee -a $log_file
     sleep $sleep_t
 
@@ -728,7 +735,7 @@ if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); 
     fi
 
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-    echo -n "$(date "+%b %d %T") TASKS RESUMED. Script will pause" | tee -a $log_file
+    echo -n "$(date "+%b %d %T") ALL TASKS RESUMED. Script will pause" | tee -a $log_file
     echo " $((sleep_factor * sleep_t)) sec. to get new memory usages." | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
 
@@ -794,41 +801,39 @@ fi
 # Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
 new_X=$curr_X
 change_X="no"
-if [[ $status_only == no ]]; then
-    # Increment taskX one value...
-    if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; then
-        for x in $valid_Xs; do
-            if ((curr_X < x)); then
-                new_X=$x
-                gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-                change_X="yes"
-                # echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
-                break # Stop when first greater x is found.
-            elif ((curr_X >= x)); then
-                continue
-            fi
-        done
+# Increment taskX one value...
+if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; then
+    for x in $valid_Xs; do
+        if ((curr_X < x)); then
+            new_X=$x
+            gpu_use=$(bc <<<"scale=2; 1 / $new_X")
+            change_X="yes"
+            # echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
+            break # Stop when first greater x is found.
+        elif ((curr_X >= x)); then
+            continue
+        fi
+    done
 
-    # decrement taskX one value...
-    elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
-        for x in $reverse_Xs; do
-            if ((curr_X > x)); then
-                new_X=$x
-                gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-                change_X="yes"
-                # echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
-                break # Stop when first lesser x is found.
-            elif ((curr_X <= x)); then
-                continue
-            fi
-        done
+# decrement taskX one value...
+elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
+    for x in $reverse_Xs; do
+        if ((curr_X > x)); then
+            new_X=$x
+            gpu_use=$(bc <<<"scale=2; 1 / $new_X")
+            change_X="yes"
+            # echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
+            break # Stop when first lesser x is found.
+        elif ((curr_X <= x)); then
+            continue
+        fi
+    done
 
-    # or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
-    elif [[ $minimize_X = yes ]]; then
-        change_X="yes"
-        gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
-        # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
-    fi
+# or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
+elif [[ $minimize_X = yes ]]; then
+    change_X="yes"
+    gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
+    # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
 fi
 
 ############################## Edit app_config.xml and issue change report ####################
@@ -846,11 +851,10 @@ fi
 
 # Stream editor sed will change ALL <gpu_usage> values in app_config.xml.
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
-# $status_only is a command line option flag. $monitor_only is set in taskXDF.cfg.
-if [[ $change_X == yes ]] && [[ $status_only == no ]] && [[ $monitor_only == yes ]]; then
+if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
     echo "Script is running in monitor-only mode, as set in taskXDF.cfg file. Task X will not be changed."
-elif [[ $change_X == yes ]] && [[ $status_only == no ]] && [[ $monitor_only == no ]]; then
+elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"

@@ -2,9 +2,9 @@
 boinc_cmd=$(command -v boinccmd)
 
 . ./taskXDF.cfg
-#ttime_max=2
+ttime_max=2
 interval_time=60
-#auto_abort=yes
+auto_abort=yes
 
 
 # Need to be sure the file is there.
@@ -13,37 +13,25 @@ gravtask_file="./currently_running_GWtasks.txt"
 
 simple_gui_info="$( ${boinc_cmd} --get_simple_gui_info )"  # NOTE: includes uploading and waiting tasks.
 
-# Need to gather ALL active task names-active state pairs then save to file only names of Executing O2MDF tasks.
-# Need to skip over lines that have the '   name: ' tag until get to the ======== Tasks ======== section.
-# A task name will always be before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
-active_data=""
-task_section=no
-while read -r line; do
-    if [[ ! $line =~ '= Tasks =' ]]  && [[ $task_section == no ]]; then
-        continue
-    elif [[ $line =~ '= Tasks =' ]]; then
-        task_section=yes
-    elif [[ $task_section == yes ]] && [[ $line =~ ^name ]]; then
-        active_data="${active_data}"$'\n'"$line" # First pass prepends a newline.
-    elif [[ $task_section == yes ]] && [[ $line =~ active_task_state: ]]; then
-        active_data="${active_data}"$'\n'"$line"
-    fi
-done <<<"$simple_gui_info"
-
+# A task name will always be read before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
 # Save only GW (O2MDF) task names that are currently running (EXECUTING).
 gravtask_line=""
+gravtask_name=""
 while read -r line; do
-    if [[ $line =~ O2MDF ]]; then
+    if [[ $line =~ ^name.*O2MDF ]]; then
         gravtask_line=$line
         continue
     fi
-    # Need to determine whether paired active_task_state line following name line specifies a running task.
+    # Need to determine whether paired active_task_state line following name line specifies that it is a running task.
     if [[ $gravtask_line =~ O2MDF ]] && [[ $line =~ EXECUTING ]]; then
         gravtask_name=$(sed 's/name: //' <<<"$gravtask_line")
         echo "$gravtask_name" >>"$gravtask_file"
         running_names="${running_names}"$'\n'"$gravtask_name" # First pass prepends a newline.
+        # Need to clear tasks to keep pair only GW tasks with their active state.
+        gravtask_line=""
+        gravtask_name=""
     fi
-done <<<"$active_data"
+done <<<"$simple_gui_info"
 sleep 0.5
 
 # $interval_time is passed as seconds from taskXDF-timer when timer script first starts
@@ -59,18 +47,21 @@ if [[ $running_names ]]; then
     while read -r name; do
         [[ -z $name ]] && continue # Skip blank lines that will mess things up here.
         runningtask_reps=$(grep -c $name $gravtask_file)
-        echo "task: $name, reps: $runningtask_reps, interval min:$interval_minute, max count:$max_runningtask_count"
         if ((runningtask_reps > max_runningtask_count)); then
             echo "$(date "+%b %d %T") NOTICE! Task $name"              | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
             if [[ $auto_abort == yes ]]; then
-                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
+#                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
+                echo "    IT WILL BE temporarily SUSPENDED."           | tee -a $log_file
 #                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
-                #notice_tone3
+                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} suspend
+                sleep 10
+                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} resume
+                notice_tone3
                 break
             elif [[ $auto_abort == no ]]; then
-                echo "    It may need to be aborted."                  | tee -a $log_file
-                #notice_tone1
+                echo "    It may need to be suspended or perhaps aborted." | tee -a $log_file
+                notice_tone1
             fi
         fi
         #   Need to flag if any one task is still running since previous script cycle.
@@ -86,3 +77,4 @@ if [[ $running_names ]]; then
         echo "$running_names" >"$gravtask_file"
     fi
 fi
+
