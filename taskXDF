@@ -806,7 +806,7 @@ fi
 # Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
 if ((curr_X > 0)); then
     new_X=$curr_X
-elif (()); then
+elif ((curr_X == 0)); then
     new_X=1
 fi
 change_X="no"
