@@ -42,6 +42,7 @@
 ########################## Set up variables and do some error checking ##########################
 #################################################################################################
 
+################################# Functions section #############################################
 # Need to know highest or lowest values among all active cards because boinc task multiples
 #   apply to all cards, thus need to use the most conservative memory values to apply to all.
 # For single card systems, something like this code example would suffice:
@@ -169,8 +170,7 @@ notice_tone3() {
         $playsound $sound_path 2> /dev/null
     fi
 }
-
-. ./taskXDF.cfg
+########################################### END of functions section ############################
 
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
 # If need to test this script while the timer script is running, then comment out the statement:
@@ -640,8 +640,13 @@ vGB_total=$(vgbtotal)
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
 #mod=1  ## DEBUG
+if ((curr_X > 0)); then
+    taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
+elif ((curr_X == 0)); then
+    taskGB='n/a'
+fi
+
 tic=10#$(date +%M)
-taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 date=$(date "+%b %d")
 time=$(date "+%T")
@@ -799,7 +804,11 @@ fi
 
 ### The main decision engine for increasing, decreasing, or minimizing task multiples.
 # Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
-new_X=$curr_X
+if ((curr_X > 0)); then
+    new_X=$curr_X
+elif (()); then
+    new_X=1
+fi
 change_X="no"
 # Increment taskX one value...
 if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; then
@@ -841,7 +850,11 @@ set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
 indent=$(printf ' %.0s' {1..16})
-taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
+if ((curr_X > 0)); then
+    taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
+elif ((curr_X == 0)); then
+    curr_X='n/a'
+fi
 sleep_factor=6 # Pause script after task change to equilibrate system.
 
 # Need to handle unknown event when gpu_use is not defined.
