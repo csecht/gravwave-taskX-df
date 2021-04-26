@@ -11,6 +11,8 @@
 #   but you will need to manually launch this timer script after each reboot.
 # TIP: Run taskXDF-timer on a 60 sec interval to get responsive task X changes.
 
+time_arg=$1
+
 # Need to read $mod and log path, then create .log in case it is not present.
 . ./taskXDF.cfg
 touch "$log_file"
@@ -24,11 +26,17 @@ orng='\x1b[0;38;5;202m'
 brn='\x1b[0;33m'
 nc='\x1b[0m'
 
+if (( $time_arg < 60 )); then
+    time_arg=60
+    echo "Interval minutes as a command line parameter cannot be less than 60 seconds."
+fi
+
 go=false
-if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ -[0-9] ]] ; then
+if [ "$#" -ne 1 ] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] ; then
     echo "
     A time interval, in seconds, for running the taskXDF-timer script is required,
     e.g., $0 60
+    Values less than 60 will be converted to 60.
 
     This timer script provides continuous timed runs of the taskXDF bash script.
 
@@ -48,7 +56,7 @@ if [ "$#" -ne 1 ] || [[ $1 =~ -help ]] || [[ $1 =~ -[0-9] ]] ; then
     echo
     exit 0
 
-elif [[ $1 == '--header' ]]; then
+elif [[ $time_arg == '--header' ]]; then
     echo
     echo "Report header:"
     echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
@@ -66,13 +74,13 @@ elif [[ $1 == '--header' ]]; then
     printf "${brn}'ready' is next task 'Ready to run', one listed for each active card.${nc}\n\n"
     exit 0
 
-elif [[ $1 =~ [a-zA-Z] ]]; then
-    echo "Invalid parameter of \"$1\". Try: $0 --help"
+elif [[ $time_arg =~ [a-zA-Z] ]]; then
+    echo "Invalid parameter of \"$time_arg\". Try: $0 --help"
     exit 0
 
-elif (( $1 == 0 )); then
+elif (( $time_arg == 0 )); then
     echo "
-    With a time interval of $1, $script is executed in status-only mode."
+    With a time interval of 0, $script is executed in status-only mode."
     echo
     echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
     printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
@@ -85,7 +93,7 @@ else
 fi
 
 # Provide an initial information message when timer is started.
-echo "Currently running $script with an interval of $1 seconds. (stop with CTRL+C)
+echo "Currently running $script with an interval of $time_arg seconds. (stop with CTRL+C)
 A status report is issued every $mod minutes, as set in the taskXDF.cfg file.
 Running..."
 echo
@@ -101,14 +109,15 @@ echo "————————————————————————�
 #   The reminder cycle interval, [ $count -eq 120 ], can be set to your liking.
 # Log file sizes greater than 20 MB (2 * 10**4) are emptied; set max size limit to your liking.
 cycle=0
+yikes=0
 while [[ $go == 'true' ]]
 do
-    /bin/bash ./${target} --go${1}
+    /bin/bash ./${target} --go${time_arg}
     sleep ${1}
     ((cycle++))
     ((yikes++))
     if (( cycle == 120 )); then
-        echo ">$script executes $target every $1 seconds and reports every $mod minutes. (CTRL+C to exit)<"
+        echo ">$script is executing $target every $time_arg seconds and reporting every $mod minutes. (CTRL+C to exit)<"
         echo
         echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
         printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
@@ -118,7 +127,7 @@ do
     fi
 
     if ((yikes >= 2 * 10**4 )); then
-        days=$(($1 * yikes / 60 / 24))
+        days=$(($time_arg * yikes / 60 / 24))
         echo "   **** YIKES! $script has been running for $yikes cycles, $days days. ****"
         echo "Just in case you forgot about me, I will EXIT now...."
         echo
