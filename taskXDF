@@ -200,7 +200,7 @@ if [[ $1 =~ --go ]]; then
 elif [[ $1 =~ --status ]]; then
     status_only=yes
     # Need to over-ride configurations in taskXDF.cfg to avoid errors and unwanted actions.
-    auto_abort=no
+    auto_suspend=no
     interval_time=60
     ttime_max=60
     # After printing headers here, script runs the initial report (in main eval body) then exits.
@@ -361,7 +361,7 @@ suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
 #### BEGIN Auto-suspend condition; toggled in taskXDF.cfg ############################################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
-# Monitor how many script cycles (minutes) each task has run, and abort it if past the configured limit.
+# Monitor how many script cycles (minutes) each task has run, and suspend it if past the configured limit.
 # Need to be sure the file is there.
 touch ./currently_running_GWtasks.txt
 gravtask_file="./currently_running_GWtasks.txt"
@@ -399,7 +399,7 @@ max_runningtask_count=$(bc <<<"$ttime_max / $interval_minute")
 # Need to set initial value of all tasks being new, then prove otherwise.
 all_tasks_new=yes
 # Need to evaluate only when there are running (EXECUTING) tasks.
-# Abort only 1 task per script cycle, hence 'break'
+# Suspend only 1 task per script cycle, hence 'break'
 if [[ $running_names ]]; then
     while read -r name; do
         [[ -z $name ]] && continue # Skip blank lines that will mess things up here.
@@ -407,7 +407,7 @@ if [[ $running_names ]]; then
         if ((runningtask_reps > max_runningtask_count)); then
             echo "$(date "+%b %d %T") NOTICE! Task $name"              | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
-            if [[ $auto_abort == yes ]]; then
+            if [[ $auto_suspend == yes ]]; then
 #                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
                 echo "    IT WILL BE SUSPENDED for 10 sec."           | tee -a $log_file
 #                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
@@ -416,7 +416,7 @@ if [[ $running_names ]]; then
                 ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} resume
                 notice_tone3
                 break
-            elif [[ $auto_abort == no ]]; then
+            elif [[ $auto_suspend == no ]]; then
                 echo "    It may need to be suspended or perhaps aborted." | tee -a $log_file
                 notice_tone1
             fi
