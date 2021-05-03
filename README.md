@@ -31,13 +31,17 @@ Jan 10 14:50:50 │     20 │    45 │ 0.77 │   0.67 │ 4 │ [.20 .20 .20 
 ```
 
 NOTES and TIPS:
-To run the main script through the timer script you may want to change permissions of app_config.xml and its project folder to avoid the need to provide sudo authentication to edit <gpu_usage>.
-To do this, make yourself a member of the boinc permissions group. Example usermod command and groups output:
+To run the main script through the timer script and avoid the need to provide authentication to edit <gpu_usage> you may want to share permissions of app_config.xml between you and boinc:
 ```
-~$ sudo usermod -a -G youtheuser boinc
+~$ sudo usermod -a -G $LOGNAME boinc
+~$ sudo usermod -a -G boinc $LOGNAME
+```
+then check with:
+```
 ~$ groups boinc
-boinc : boinc video render youtheuser
+~$ groups $LOGNAME
 ```
+
 After adding yourself to the boinc group, a system reboot is needed for the new permissions to take effect.
 Check that the boinc group has write permission for the app_config.xml file, e.g.:
 

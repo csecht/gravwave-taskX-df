@@ -32,15 +32,17 @@
 # For use with single and multi AMD GPU card systems.
 # Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi.
 # The program will not work in mixed task queues;
-#   all tasks in queue must be of the gravitational wave O2MDF work series.
+#   all tasks in queue must be of the gravitational wave O3AS work series.
 # Written with GNU bash, version 5.0 (x86_64-pc-linux-gnu).
 #   No guarantee it will work on all distros.
-# This version uses delta frequencies (DF) of O2MDF gravitational wave tasks.
+# This version uses delta frequencies (DF) of O3AS gravitational wave tasks.
 # The taskXDF .cfg configuration file is required, in the same folder,
 #   to set user-defined variables.
 
 ########################## Set up variables and do some error checking ##########################
 #################################################################################################
+
+. ./taskXDF.cfg
 
 ################################# Functions section #############################################
 # Need to know highest or lowest values among all active cards because boinc task multiples
@@ -52,6 +54,7 @@
 vgbtotal() {
     vGB_total=100
     for p in $amd_paths; do
+        # shellcheck disable=SC2086
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_tot=$(cat ${card_path}mem_info_vram_total)
         temp_tot=$(bc <<<"scale=2; $vm_tot / 1024^3")
@@ -177,26 +180,26 @@ notice_tone3() {
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
 #  which is in the interval reporting section of the main body.
 # The timer script path is defined in .cfg file.
-taskprocs_num=$(pgrep -c $timer_script)
-if ((taskprocs_num > 1)); then
-    task_pids=$(pgrep $timer_script)
-    notice_tone2
-    echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
-    echo "Their process IDs are:"
-    echo $task_pids
-    echo "You will receive process ID error messages as long as this continues..."
-fi
+#taskprocs_num=$(pgrep -c $timer_script)
+#if ((taskprocs_num > 1)); then
+#    task_pids=$(pgrep $timer_script)
+#    notice_tone2
+#    echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
+#    echo "Their process IDs are:"
+#    echo $task_pids
+#    echo "You will receive process ID error messages as long as this continues..."
+#fi
 
 # When need to just get the status report and not change taskX.
 # Script argument of --status is normally passed from timer script.
-# The --go tag is passed from taskXDF-timer so time interval value can be extracted.
+# The --go tagged interval time argument is passed as the time argument from the timer script;
 status_only=no
 if [[ $1 =~ --go ]]; then
+    # shellcheck disable=SC2116
     interval_time=$(echo ${1#--go})
 elif [[ $1 =~ --status ]]; then
     status_only=yes
     # Need to over-ride configurations in taskXDF.cfg to avoid errors and unwanted actions.
-    mod=1
     auto_abort=no
     interval_time=60
     ttime_max=60
@@ -222,7 +225,9 @@ fi
 # Lowest X is used for emergency decrementing of task X.
 valid_Xs=$(echo "$X1 $X2 $X3 $X4 $X5" | xargs)
 reverse_Xs=$(echo "$valid_Xs" | rev)
+# shellcheck disable=SC2116
 highest_X=$(echo "${valid_Xs: -2}") # -2 to account for trailing /n.
+# shellcheck disable=SC2116
 lowest_X=$(echo "${valid_Xs::1}")
 
 # Exit point. Check for bad values from the .cfg file.
@@ -296,8 +301,8 @@ tasks="$( ${boinc_cmd} --get_tasks )"
 names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 
 # Script works only on task names with two search frequency values present: GW tasks.
-if grep -qv "O2MDF" <<<"$names"; then
-    echo "There are non-O2MDF tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
+if grep -qv "O3AS" <<<"$names"; then
+    echo "There are non-O3AS tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
     if [[ $status_only == no ]]; then
         notice_tone2
     fi
@@ -320,6 +325,7 @@ fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 frac_hi=0
 frac_lo=1
 if [[ $fracdone ]]; then
+    # shellcheck disable=SC2162
     while read frac; do
         tmpfrac=$frac
         if [ $(bc <<<"$tmpfrac > $frac_hi") -eq 1 ]; then
@@ -353,7 +359,7 @@ num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
 suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
 
 
-#### BEGIN Auto-Abort condition; toggled in taskXDF.cfg ############################################
+#### BEGIN Auto-suspend condition; toggled in taskXDF.cfg ############################################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
 # Monitor how many script cycles (minutes) each task has run, and abort it if past the configured limit.
 # Need to be sure the file is there.
@@ -363,17 +369,19 @@ gravtask_file="./currently_running_GWtasks.txt"
 simple_gui_info="$( ${boinc_cmd} --get_simple_gui_info )"  # NOTE: includes uploading and waiting tasks.
 
 # A task name will always be read before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
-# Save only GW (O2MDF) task names that are currently running (EXECUTING).
+# Save only GW (O3AS) task names that are currently running (EXECUTING).
 gravtask_line=""
 gravtask_name=""
 while read -r line; do
-    if [[ $line =~ ^name.*O2MDF ]]; then
+    if [[ $line =~ ^name.*O3AS ]]; then
         gravtask_line=$line
         continue
     fi
     # Need to determine whether paired active_task_state line following name line specifies that it is a running task.
-    if [[ $gravtask_line =~ O2MDF ]] && [[ $line =~ EXECUTING ]]; then
+    if [[ $gravtask_line =~ O3AS ]] && [[ $line =~ EXECUTING ]]; then
+        # shellcheck disable=SC2001
         gravtask_name=$(sed 's/name: //' <<<"$gravtask_line")
+        # gravtask_name=$(gravtask_line//'s/name: '//)
         echo "$gravtask_name" >>"$gravtask_file"
         running_names="${running_names}"$'\n'"$gravtask_name" # First pass prepends a newline.
         # Need to clear task data to ensure GW tasks are paired with their own active states.
@@ -426,7 +434,7 @@ if [[ $running_names ]]; then
         echo "$running_names" >"$gravtask_file"
     fi
 fi
-#### END Auto-Abort condition ######################################################################
+#### END Auto-suspend condition ######################################################################
 
 
 # Set current X if all is well; reset or update Project if not.
@@ -475,7 +483,7 @@ elif ((num_run == 0)); then
     num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
     if ((num_run > 0)); then
         curr_X=$((num_run / num_gpu))
-        echo "$num_run task(s) are running following task resumption or update."  | tee -a $log_file
+        echo "$num_run tasks are running following task resumption or update."  | tee -a $log_file
     elif ((num_run == 0)); then
         echo "$(date "+%b %d %T") Still no tasks running. Check Boinc Manager." | tee -a $log_file
         echo
@@ -510,11 +518,12 @@ fi
 #$num_wait task(s) waiting to run.
 #$num_all_tasks task(s) total in queue." | tee -a $log_file
 
-# Skip non-GW (non-O2MDF) tasks.
+# Skip non-GW (non-O3AS) tasks.
 # This regex will not match Gamma-ray pulsar search #5 task IDs.
 # Delta frequencies (DF) of all tasks are later filtered for relevant tasks.
+# shellcheck disable=SC2162
 while read name; do
-    if [[ $name =~ O2MDF ]]; then
+    if [[ $name =~ O3AS ]]; then
         frequencies=$(grep -oE "[[:digit:]]+\\.[[:digit:]]{2}" <<<"$name")
         f1=$(echo $frequencies | cut -d" " -f 1) # Do not quote $frequencies or use <<<$frequencies.
         f2=$(echo $frequencies | cut -d" " -f 2)
@@ -540,6 +549,7 @@ findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates"))
 waitDF_hi=0
 cnt=0
 readyDF_hi=0
+# shellcheck disable=SC2162
 while read line; do
     if [[ $line =~ scheduled ]]; then  # < Running
         runDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
@@ -648,6 +658,7 @@ elif ((curr_X == 0)); then
 fi
 
 tic=10#$(date +%M)
+#tic=$(date +%M)
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 date=$(date "+%b %d")
 time=$(date "+%T")
@@ -663,10 +674,15 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 #### INITIAL REPORT used for startup and status_only == yes condition.
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
-timer_pid=$(pgrep  $timer_script)
+timer_pid=$(pgrep  "$timer_script")
+#timer_pid=$(pgrep  taskXDF-timer)
+
 if [[ $timer_pid ]]; then
+    # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
+
 fi
+
 if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
     echo -n "$date $time │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file

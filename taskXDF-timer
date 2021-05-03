@@ -19,24 +19,24 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.6.1'
+version='0.6.2'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
 brn='\x1b[0;33m'
 nc='\x1b[0m'
 
-if (( $time_arg < 60 )); then
+if ((time_arg < 60)) && ((time_arg > 0)); then
     time_arg=60
     echo "Interval minutes as a command line parameter cannot be less than 60 seconds."
 fi
 
 go=false
-if [ "$#" -ne 1 ] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] ; then
+if [[ $# != 1 ]] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] || [[ $time_arg =~ [.] ]]; then
     echo "
     A time interval, in seconds, for running the taskXDF-timer script is required,
     e.g., $0 60
-    Values less than 60 will be converted to 60.
+    Values less than 60 will be converted to 60. Decimal seconds are invalid.
 
     This timer script provides continuous timed runs of the taskXDF bash script.
 
@@ -44,7 +44,7 @@ if [ "$#" -ne 1 ] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] ; the
         otherwise a non-zero interval time provides interval reports and taskX adjustments.
 
     Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
-        Einstein@Home O2MDF gravitational wave GPU tasks.
+        Einstein@Home O3AS gravitational wave GPU tasks.
 
     A log file of Terminal output is created in the current folder.
 
@@ -56,7 +56,7 @@ if [ "$#" -ne 1 ] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] ; the
     echo
     exit 0
 
-elif [[ $time_arg == '--header' ]]; then
+elif [[ $time_arg == --header ]]; then
     echo
     echo "Report header:"
     echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
@@ -73,21 +73,16 @@ elif [[ $time_arg == '--header' ]]; then
     echo "When all running DFs are equal, taskGB is the GB requirement of that DF."
     printf "${brn}'ready' is next task 'Ready to run', one listed for each active card.${nc}\n\n"
     exit 0
+elif [[ $time_arg == 0 ]] || [[ $time_arg == --status ]]; then
+    echo "
+    With an argument of $time_arg, $script is executed in status-only mode."
+    /bin/bash ./$target --status
+    exit 0
 
 elif [[ $time_arg =~ [a-zA-Z] ]]; then
     echo "Invalid parameter of \"$time_arg\". Try: $0 --help"
     exit 0
 
-elif (( $time_arg == 0 )); then
-    echo "
-    With a time interval of 0, $script is executed in status-only mode."
-    echo
-    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
-    printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
-    echo -n "————————————————│————————│———————│——————│————————│———│"
-    echo "————————————————————————————————————————"
-    /bin/bash ./$target --status
-    exit 0
 else
     go=true
 fi
@@ -106,17 +101,16 @@ echo "————————————————————————�
 # The --go argument is used as a tag so that time interval value can be passed to taskXDF for time calculations.
 # A reminder is provided for how to stop once every 120 interval cycles of the main script. (expect a 60 sec. cycle)
 # The actual number of status reports between reminders depends on the $mod setting in the -cfg file.
-#   The reminder cycle interval, [ $count -eq 120 ], can be set to your liking.
-# Log file sizes greater than 20 MB (2 * 10**4) are emptied; set max size limit to your liking.
+#   The reminder cycle interval, (( cycle == digit )), can be set to the user's liking.
 cycle=0
 yikes=0
-while [[ $go == 'true' ]]
+while [[ $go == true ]]
 do
     /bin/bash ./${target} --go${time_arg}
-    sleep ${1}
+    sleep $time_arg
     ((cycle++))
     ((yikes++))
-    if (( cycle == 120 )); then
+    if  [[ $cycle == 120 ]] ; then
         echo ">$script is executing $target every $time_arg seconds and reporting every $mod minutes. (CTRL+C to exit)<"
         echo
         echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
@@ -126,11 +120,11 @@ do
         cycle=0
     fi
 
-    if ((yikes >= 2 * 10**4 )); then
-        days=$(($time_arg * yikes / 60 / 24))
+    if ((yikes >= 2 * 10**4)); then
+        days=$((time_arg * yikes / 60 / 24))
         echo "   **** YIKES! $script has been running for $yikes cycles, $days days. ****"
         echo "Just in case you forgot about me, I will EXIT now...."
         echo
-        exit 0
+        exit
     fi
 done
