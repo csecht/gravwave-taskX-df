@@ -88,7 +88,8 @@ else
 fi
 
 # Provide an initial information message when timer is started.
-echo "Currently running $script with an interval of $time_arg seconds. (stop with CTRL+C)
+echo "Currently running $script to execute $tartget on interval of $time_arg seconds.
+(can be stopped with CTRL+C)
 A status report is issued every $mod minutes, as set in the taskXDF.cfg file.
 Running..."
 echo
@@ -111,7 +112,8 @@ do
     ((cycle++))
     ((yikes++))
     if  [[ $cycle == 120 ]] ; then
-        echo ">$script is executing $target every $time_arg seconds and reporting every $mod minutes. (CTRL+C to exit)<"
+        echo ">> $script is executing $target every $time_arg seconds and reporting every $mod minutes. <<
+        (can be stopped with CTRL+C)"
         echo
         echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
         printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
