@@ -303,8 +303,10 @@ names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 # Script works only on task names with two search frequency values present: GW tasks.
 if grep -qv "O3AS" <<<"$names"; then
     echo "There are non-O3AS tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
+    echo "Task X will be set to the lowest configured value of $lowest_X"
     if [[ $status_only == no ]]; then
         notice_tone2
+        minimize_X=yes
     fi
 fi
 
@@ -498,9 +500,9 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-minimize_X="no"
+minimize_X=no
 if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
-    minimize_X="yes"
+    minimize_X=yes
     echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
 fi
 
@@ -508,8 +510,8 @@ fi
 #   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
 if ((num_run > 0)) && ((suspended_task > 0)); then
     echo
-    echo "$(date "+%b %d %T") *** You have a task suspended; now lowering taskX... ***" | tee -a "$log_file"
-    minimize_X="yes"
+    echo "$(date "+%b %d %T") *** You have a task suspended; now lowering task X... ***" | tee -a "$log_file"
+    minimize_X=yes
 fi
 
 #echo "$num_gpu AMD card(s) recognized.
