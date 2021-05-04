@@ -132,7 +132,7 @@ playsound=$(command -v paplay)
 sound_path=('/usr/share/sounds/freedesktop/stereo/dialog-warning.oga')
 # Also use sound that should work in any Linux distro bash.
 # printf '/a' & echo -en '\007' source: https://stackoverflow.com/questions/1143386/in-a-bash-script-command-how-can-i-make-a-pc-beep-noise-or-play-a-sound-file
-# printf '/a' works with motherboard speaker, not external speakers.
+# printf '/a' works with motherboard speaker, not external speakers?
 # sleep is to give time to execute successive tones.
 notice_tone1() {
     printf '\a'
@@ -180,15 +180,15 @@ notice_tone3() {
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
 #  which is in the interval reporting section of the main body.
 # The timer script path is defined in .cfg file.
-#taskprocs_num=$(pgrep -c $timer_script)
-#if ((taskprocs_num > 1)); then
-#    task_pids=$(pgrep $timer_script)
-#    notice_tone2
-#    echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
-#    echo "Their process IDs are:"
-#    echo $task_pids
-#    echo "You will receive process ID error messages as long as this continues..."
-#fi
+taskprocs_num=$(pgrep -c $timer_script)
+if ((taskprocs_num > 1)); then
+    task_pids=$(pgrep $timer_script)
+    notice_tone2
+    echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
+    echo "Their process IDs are:"
+    echo $task_pids
+    echo "You will receive process ID error messages as long as this continues..."
+fi
 
 # When need to just get the status report and not change taskX.
 # Script argument of --status is normally passed from timer script.
@@ -301,9 +301,11 @@ tasks="$( ${boinc_cmd} --get_tasks )"
 names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 
 # Script works only on task names with two search frequency values present: GW tasks.
+# In the main body, $minimize_X = yes sets task X to lowest valid X.
+minimize_X=no
 if grep -qv "O3AS" <<<"$names"; then
     echo "There are non-O3AS tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
-    echo "Task X will be set to the lowest configured value of $lowest_X"
+    echo "Task X will be set to the lowest configured value: $lowest_X"
     if [[ $status_only == no ]]; then
         notice_tone2
         minimize_X=yes
@@ -500,7 +502,6 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-minimize_X=no
 if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
     minimize_X=yes
     echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
@@ -859,7 +860,7 @@ elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
 
 # or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
 elif [[ $minimize_X = yes ]]; then
-    change_X="yes"
+    change_X=yes
     gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
     # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
 fi
