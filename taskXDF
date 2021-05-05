@@ -240,8 +240,8 @@ if [[ "$valid_Xs" =~ [0.A-Za-z] ]]    ||
     [[ $ttime_max =~ ^[0]|[.A-Za-z ]]; then
     notice_tone2
     echo "Some values in .cfg file accept decimals, some accept only integers,
-    but never just zero. None, except path names, accept letter characters.
-    Edit the .cfg file. Exiting...." | tee -a $log_file
+    but never just zero. Only path names accept letter characters.
+    Edit the .cfg file to fix possible value errors. Exiting...." | tee -a $log_file
     exit 1
 fi
 
@@ -295,21 +295,32 @@ if [[ ! $boinc_cmd ]]; then
     Exiting..."
     exit 1
 fi
-# TODO: find out $tasks value when there are not tasks in queue. It is empty?
+
+
+# TODO: find out $tasks value when there are no tasks in queue. Is the var empty?
 tasks="$( ${boinc_cmd} --get_tasks )"
 # Parse task names from all queued tasks; used for calculating DF.
 names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 
-# Script works only on task names with two search frequency values present: GW tasks.
-# In the main body, $minimize_X = yes sets task X to lowest valid X.
+# Task X changes only for task names with two search frequency values present: GW tasks.
+#   ..but that task X can also be used for FGRP tasks.
+# In the main body, $minimize_X = yes sets task X to lowest valid configured X.
 minimize_X=no
-if grep -qv "O3AS" <<<"$names"; then
-    echo "There are non-O3AS tasks in the queue. Problems may arise with task multiplicities." | tee -a $log_file
-    echo "Task X will be set to the lowest configured value: $lowest_X"
-    if [[ $status_only == no ]]; then
-        notice_tone2
-        minimize_X=yes
+validtask_num=0
+invaltask_num=0
+# shellcheck disable=SC2162
+while read name; do
+    if [[ $name =~ O3AS ]] || [[ $name =~ LATeah ]]; then
+        ((validtask_num++))
+    else
+        ((invaltask_num++))
     fi
+done <<<"$names"
+if [[ $status_only == no ]] && ((invaltask_num > 0)); then
+    echo "Tasks other than O3AS and LATeah are in queue. Problems may arise with task multiplicities." | tee -a $log_file
+    echo "    Task X will be set to the lowest configured value: $lowest_X"
+    minimize_X=yes
+    notice_tone2
 fi
 
 # Parse relevant lines from all tasks; used for eval of waiting, lookahead, or incrementing.
@@ -354,16 +365,24 @@ if [[ $names ]]; then
   num_all_tasks=$(wc -l <<<"$names")
 fi
 
-# NOTE: Cannot use grep -c in place of | wc -l for counting b/c when nothing is found,
+########TESTING ################
+#task_sum1=$((validtask_num + invaltask_num))
+#names_sum=$(echo "$tasks" | grep -c '^   name')
+#echo "Task count:$num_all_tasks vs. sum of valid & invalid tasks:$task_sum1 vs. names count:$names_sum."
+#echo "Invalid task count:$invaltask_num."
+################################
+
+# NOTE: Do not use set -e with grep -c for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
-num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
-num_wait=$(grep 'scheduler state: preempted' <<<"$tasks" | wc -l)
-num_uploading=$(grep 'state: uploading' <<<"$tasks" | wc -l)
-num_uploaded=$(grep 'state: uploaded' <<<"$tasks" | wc -l)  # Ready to report.
-suspended_task=$(grep 'suspended via GUI: yes' <<<"$tasks" | wc -l)
+#   If set -e is used, pipe grep to wc:  | wc -l
+num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
+num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
+num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
+num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks")  # Ready to report.
+suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 
 
-#### BEGIN Auto-suspend condition; toggled in taskXDF.cfg ############################################
+##############  BEGIN Auto-suspend condition; toggled in taskXDF.cfg #########################################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
 # Monitor how many script cycles (minutes) each task has run, and suspend it if past the configured limit.
 # Need to be sure the file is there.
@@ -446,6 +465,7 @@ fi
 #   to break the log jam.
 # Final forced exit point if all is not well (have run out of tasks).
 # NOTE: $curr_X will not be accurate if non-AMD cards are crunching.
+# NOTE: $curr_X will not be accurate if CPU tasks are running.
 # Wrong task X settings also may be applied when the number of tasks running is limited
 #    by <max_concurrent> or <project_max_concurrent> in app_config.xml.
 # Need to resume tasks in case task suspension from previous cycle gets stuck for some reason.
@@ -661,7 +681,6 @@ elif ((curr_X == 0)); then
 fi
 
 tic=10#$(date +%M)
-#tic=$(date +%M)
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 date=$(date "+%b %d")
 time=$(date "+%T")
@@ -677,16 +696,13 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 #### INITIAL REPORT used for startup and status_only == yes condition.
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
-timer_pid=$(pgrep  "$timer_script")
-#timer_pid=$(pgrep  taskXDF-timer)
+timer_pid=$(pgrep taskXDF-timer)
 
 if [[ $timer_pid ]]; then
     # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
-
 fi
-
-if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 3)); then
+if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 10)); then
     echo -n "$date $time │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"

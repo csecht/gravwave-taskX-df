@@ -19,7 +19,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.6.2'
+version='0.6.4'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
@@ -45,6 +45,7 @@ if [[ $# != 1 ]] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] || [[ 
 
     Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
         Einstein@Home O3AS gravitational wave GPU tasks.
+    Script WILL NOT WORK properly if CPU tasks are queued.
 
     A log file of Terminal output is created in the current folder.
 
