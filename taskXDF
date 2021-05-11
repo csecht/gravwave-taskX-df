@@ -32,10 +32,10 @@
 # For use with single and multi AMD GPU card systems.
 # Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi.
 # The program will not work in mixed task queues;
-#   all tasks in queue must be of the gravitational wave O3AS work series.
+#   all tasks in queue must be of the gravitational wave work series.
 # Written with GNU bash, version 5.0 (x86_64-pc-linux-gnu).
 #   No guarantee it will work on all distros.
-# This version uses delta frequencies (DF) of O3AS gravitational wave tasks.
+# This version uses delta frequencies (DF) of gravitational wave tasks.
 # The taskXDF .cfg configuration file is required, in the same folder,
 #   to set user-defined variables.
 
@@ -310,14 +310,14 @@ validtask_num=0
 invaltask_num=0
 # shellcheck disable=SC2162
 while read name; do
-    if [[ $name =~ O3AS ]] || [[ $name =~ LATeah ]]; then
+    if [[ $name =~ $gravtask_tag ]] || [[ $name =~ LATeah ]]; then
         ((validtask_num++))
     else
         ((invaltask_num++))
     fi
 done <<<"$names"
 if [[ $status_only == no ]] && ((invaltask_num > 0)); then
-    echo "Tasks other than O3AS and LATeah are in queue. Problems may arise with task multiplicities." | tee -a $log_file
+    echo "Tasks other than $gravtask_tag and LATeah are in queue. Task multiplicities may be invalid." | tee -a $log_file
     echo "    Task X will be set to the lowest configured value: $lowest_X"
     minimize_X=yes
     notice_tone2
@@ -392,19 +392,18 @@ gravtask_file="./currently_running_GWtasks.txt"
 simple_gui_info="$( ${boinc_cmd} --get_simple_gui_info )"  # NOTE: includes uploading and waiting tasks.
 
 # A task name will always be read before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
-# Save only GW (O3AS) task names that are currently running (EXECUTING).
+# Save only GW task names, defined in .cfg, that are currently running (EXECUTING).
 gravtask_line=""
 gravtask_name=""
 while read -r line; do
-    if [[ $line =~ ^name.*O3AS ]]; then
+    if [[ $line =~ ^name.*$gravtask_tag ]]; then
         gravtask_line=$line
         continue
     fi
     # Need to determine whether paired active_task_state line following name line specifies that it is a running task.
-    if [[ $gravtask_line =~ O3AS ]] && [[ $line =~ EXECUTING ]]; then
+    if [[ $gravtask_line =~ $gravtask_tag ]] && [[ $line =~ EXECUTING ]]; then
         # shellcheck disable=SC2001
         gravtask_name=$(sed 's/name: //' <<<"$gravtask_line")
-        # gravtask_name=$(gravtask_line//'s/name: '//)
         echo "$gravtask_name" >>"$gravtask_file"
         running_names="${running_names}"$'\n'"$gravtask_name" # First pass prepends a newline.
         # Need to clear task data to ensure GW tasks are paired with their own active states.
@@ -431,9 +430,7 @@ if [[ $running_names ]]; then
             echo "$(date "+%b %d %T") NOTICE! Task $name"              | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
             if [[ $auto_suspend == yes ]]; then
-#                echo "    IT WILL BE ABORTED."                         | tee -a $log_file
                 echo "    IT WILL BE SUSPENDED for 10 sec."           | tee -a $log_file
-#                ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} abort
                 ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} suspend
                 sleep 10
                 ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} resume
@@ -541,12 +538,12 @@ fi
 #$num_wait task(s) waiting to run.
 #$num_all_tasks task(s) total in queue." | tee -a $log_file
 
-# Skip non-GW (non-O3AS) tasks.
+# Skip non-GW (non-$gravtask_tag) tasks.
 # This regex will not match Gamma-ray pulsar search #5 task IDs.
 # Delta frequencies (DF) of all tasks are later filtered for relevant tasks.
 # shellcheck disable=SC2162
 while read name; do
-    if [[ $name =~ O3AS ]]; then
+    if [[ $name =~ $gravtask_tag ]]; then
         frequencies=$(grep -oE "[[:digit:]]+\\.[[:digit:]]{2}" <<<"$name")
         f1=$(echo $frequencies | cut -d" " -f 1) # Do not quote $frequencies or use <<<$frequencies.
         f2=$(echo $frequencies | cut -d" " -f 2)
