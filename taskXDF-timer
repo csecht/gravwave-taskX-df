@@ -91,8 +91,12 @@ fi
 # Provide an initial information message when timer is started.
 echo "Currently running $script to execute $target on an interval of $time_arg seconds.
 (can be stopped with CTRL+C)
-A status report is issued every $mod minutes, as set in the taskXDF.cfg file.
-Running..."
+A status report is issued every $mod minutes, as set in the taskXDF.cfg file."
+if [[ $monitor_only == yes ]]; then
+    echo "Running in monitor mode, as set in .cfg. Task X will not be changed."
+elif [[ $monitor_only == no ]]; then
+    echo "Running..."
+fi
 echo
 echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
 printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
