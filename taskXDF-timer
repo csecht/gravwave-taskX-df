@@ -89,7 +89,7 @@ else
 fi
 
 # Provide an initial information message when timer is started.
-echo "Currently running $script to execute $tartget on interval of $time_arg seconds.
+echo "Currently running $script to execute $target on an interval of $time_arg seconds.
 (can be stopped with CTRL+C)
 A status report is issued every $mod minutes, as set in the taskXDF.cfg file.
 Running..."
