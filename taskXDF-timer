@@ -19,45 +19,22 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.6.4'
+version='0.6.5'
 
 blue='\x1b[1;38;5;33m'
 orng='\x1b[0;38;5;202m'
 brn='\x1b[0;33m'
 nc='\x1b[0m'
 
-if ((time_arg < 60)) && ((time_arg > 0)); then
+if ((time_arg > 0 && time_arg < 60)); then
     time_arg=60
-    echo "Interval minutes as a command line parameter cannot be less than 60 seconds."
+    echo "Interval time in a command line parameter cannot be less than 60 seconds."
+    echo "Values between 0 and 60 will be converted to 60."
+    echo "TIP: An value of zero is an alternative to the --status argument."
 fi
 
 go=false
-if [[ $# != 1 ]] || [[ $time_arg =~ -help ]] || [[ $time_arg =~ -[0-9] ]] || [[ $time_arg =~ [.] ]]; then
-    echo "
-    A time interval, in seconds, for running the taskXDF-timer script is required,
-    e.g., $0 60
-    Values less than 60 will be converted to 60. Decimal seconds are invalid.
-
-    This timer script provides continuous timed runs of the taskXDF bash script.
-
-    A time interval of 0 (zero) provides a one-off status report from $target,
-        otherwise a non-zero interval time provides interval reports and taskX adjustments.
-
-    Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
-        Einstein@Home O3AS gravitational wave GPU tasks.
-    Script WILL NOT WORK properly if CPU tasks are queued.
-
-    A log file of Terminal output is created in the current folder.
-
-    For explanation of interval data reported: $0 --header.
-
-    Numerous script run parameters can be configured in the taskXDF.cfg text file.
-
-    Version: $version"
-    echo
-    exit 0
-
-elif [[ $time_arg == --header ]]; then
+if  [[ $time_arg == --header ]]; then
     echo
     echo "Report header:"
     echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
@@ -74,13 +51,46 @@ elif [[ $time_arg == --header ]]; then
     echo "When all running DFs are equal, taskGB is the GB requirement of that DF."
     printf "${brn}'ready' is next task 'Ready to run', one listed for each active card.${nc}\n\n"
     exit 0
+
 elif [[ $time_arg == 0 ]] || [[ $time_arg == --status ]]; then
     echo "
     With an argument of $time_arg, $script is executed in status-only mode."
     /bin/bash ./$target --status
     exit 0
 
-elif [[ $time_arg =~ [a-zA-Z] ]]; then
+elif [[ $# != 1 ]] ||
+    [[ $time_arg =~ -help ]] ||
+    [[ $time_arg =~ [.] ]]; then
+    echo "
+    A time interval, in seconds, for running the taskXDF-timer script is required
+        to automate changes to task X.
+    e.g., $0 60
+    Values less than 60 will be converted to 60. Decimal seconds are invalid.
+
+    Optional arguments: --header --status --monitor --help
+        --header provides explanation of types of interval data reported; no interval time needed.
+        --status provides current boinc and GPU run metrics; does not change task X.
+        --help brings up this message.
+
+    This timer script provides continuous timed runs of the taskXDF bash script.
+
+    A time interval of 0 (zero) provides a one-off status report from $target,
+        otherwise a non-zero interval time provides interval reports and taskX adjustments.
+
+    Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
+        Einstein@Home O3AS gravitational wave GPU tasks.
+    Script WILL NOT WORK properly if CPU tasks are queued.
+
+    A log file of Terminal output is created in the current folder.
+
+    Numerous script run parameters can be configured in the taskXDF.cfg text file.
+
+    Version: $version"
+    echo
+    exit 0
+
+# Need to catch any unexpected argument that's made it this far...
+elif [[ $time_arg =~ [^0-9] ]]; then
     echo "Invalid parameter of \"$time_arg\". Try: $0 --help"
     exit 0
 
