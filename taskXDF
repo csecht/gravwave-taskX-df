@@ -192,7 +192,8 @@ fi
 
 # When need to just get the status report and not change taskX.
 # Script argument of --status is normally passed from timer script.
-# The --go tagged interval time argument is passed as the time argument from the timer script;
+# The --go tagged interval time argument is passed as the time argument from the timer script.
+# Terminal font colors are defined in .cfg.
 status_only=no
 if [[ $1 =~ --go ]]; then
     # shellcheck disable=SC2116
@@ -681,11 +682,7 @@ tic=10#$(date +%M)
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 date=$(date "+%b %d")
 time=$(date "+%T")
-# These escape codes will work with all ANSI/VT100 terminals and terminal emulators.
-blue='\x1b[1;38;5;33m' # Blue and orange are for red-green color blind users.
-orng='\x1b[0;38;5;202m'
-brn='\033[0;33m'
-nc='\033[0m'
+
 # Need pretty terminal output,
 # queued │ VRAM% │ GTT% │ taskGB │
 pad=" %5d │ %5d │ %4.2f │ %6.2f │"

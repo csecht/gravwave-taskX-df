@@ -19,20 +19,16 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.6.5'
-
-blue='\x1b[1;38;5;33m'
-orng='\x1b[0;38;5;202m'
-brn='\x1b[0;33m'
-nc='\x1b[0m'
+version='0.6.6'
 
 if ((time_arg > 0 && time_arg < 60)); then
     time_arg=60
-    echo "Interval time in a command line parameter cannot be less than 60 seconds."
-    echo "Values between 0 and 60 will be converted to 60."
-    echo "TIP: An value of zero is an alternative to the --status argument."
+    echo "Interval time parameter cannot be less than 60 seconds."
+    echo "   Values between 0 and 60 will be converted to 60."
+    echo "TIP: A value of zero is an alternative to the --status argument."
 fi
 
+# Terminal font colors are defined in .cfg.
 go=false
 if  [[ $time_arg == --header ]]; then
     echo
