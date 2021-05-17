@@ -668,7 +668,7 @@ vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
 ######################## Report task and GPU metrics on the configured interval.  ##################
-# $mod, set in  .cfg, is the number of minutes between reports.
+# $mod (modulus), set in  .cfg, is the number of minutes between reports.
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
 #mod=1  ## DEBUG
@@ -687,16 +687,18 @@ time=$(date "+%T")
 # queued │ VRAM% │ GTT% │ taskGB │
 pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 
-#### INITIAL REPORT used for startup and status_only == yes condition.
+# An initial report is issued on startup and status_only == yes condition.
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
+# OTHERWISE, report interval is based on $mod value (set in .cfg).
+#    NOTE that $mod intervals are based on actual clock time, not script elapsed time.
 timer_pid=$(pgrep taskXDF-timer)
 
 if [[ $timer_pid ]]; then
     # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
-if [ $((tic % mod)) -eq 0 ] || ((timer_uptime < 10)); then
+if ((timer_uptime < 10)) || [ $((tic % mod)) -eq 0 ]; then
     echo -n "$date $time │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
