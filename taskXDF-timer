@@ -63,7 +63,7 @@ elif [[ $# != 1 ]] ||
     e.g., $0 60
     Values less than 60 will be converted to 60. Decimal seconds are invalid.
 
-    Optional arguments: --header --status --monitor --help
+    Optional arguments: --header --status --help
         --header provides explanation of types of interval data reported; no interval time needed.
         --status provides current boinc and GPU run metrics; does not change task X.
         --help brings up this message.
@@ -72,6 +72,9 @@ elif [[ $# != 1 ]] ||
 
     A time interval of 0 (zero) provides a one-off status report from $target,
         otherwise a non-zero interval time provides interval reports and taskX adjustments.
+
+    To monitor task status on a regular interval without changing task X, edit the
+        taskXDF.cfg file to monitor_only=yes (default is 'no').
 
     Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
         Einstein@Home O3AS gravitational wave GPU tasks.
@@ -99,6 +102,7 @@ echo "Currently running $script to execute $target on an interval of $time_arg s
 (can be stopped with CTRL+C)
 A status report is issued every $mod minutes, as set in the taskXDF.cfg file."
 
+# monitor_only is set in .cfg file.
 if [[ $monitor_only == yes ]]; then
     echo "Running in monitor mode, as set in .cfg. Task X will not be changed."
 elif [[ $monitor_only == no ]]; then
