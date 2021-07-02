@@ -606,10 +606,17 @@ if [[ ! $waitDF_all ]]; then
     waitDF_all="na"
 fi
 
-# When no tasks ready to start, provide a heads-up.
-if [[ ! $readyDF_lookahead ]]; then
-    readyDF_lookahead="NO TASKS ARE READY!"
-    notice_tone3
+# When no GW tasks are ready to start or currently running, provide a heads-up.
+# [ -z "${num##[0-9]*}" ]
+integer="[0-9]"
+if [[ ! $readyDF_lookahead =~ $integer ]]; then
+    readyDF_lookahead="na"
+    echo "$(date "+%b %d %T") NO GW TASKS ARE READY"
+#    notice_tone2
+fi
+if [[ ! $runDF_all =~ $integer ]]; then
+    runDF_all="na"
+    echo "$(date "+%b %d %T") NO GW TASKS ARE RUNNING"
 fi
 
 # Set up associative array to get the VRAM GB requirement of a task from its DF.
