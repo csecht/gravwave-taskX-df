@@ -905,7 +905,8 @@ fi
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
 if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
-    echo "Script is running in monitor-only mode, as set in taskXDF.cfg file. Task X will not be changed."
+    echo "A change to task X is warranted, but this script is running in a"
+    echo "  monitor-only mode, as set in taskXDF.cfg file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
