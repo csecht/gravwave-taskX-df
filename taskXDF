@@ -329,6 +329,7 @@ fi
 # Only running, waiting, and suspended tasks will have a 'fraction done' tag.
 states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
 schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
+actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
 fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 
 # Need to get the  highest progressed running task, b/c a card with a task at 99% completion
@@ -338,6 +339,7 @@ fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 # $frac_xx are used in main body to evaluate increasing task X when a task is near completion
 #   or just begun running.
 # Evaluate only when $fracdone is not empty; if empty, set values to prevent a taskX increase.
+# TODO: CHECK whether this works with mixed tasks (non-GW tasks also running).
 frac_hi=0
 frac_lo=1
 if [[ $fracdone ]]; then
@@ -539,9 +541,9 @@ fi
 #$num_wait task(s) waiting to run.
 #$num_all_tasks task(s) total in queue." | tee -a $log_file
 
-# Skip non-GW (non-$gravtask_tag) tasks.
+# Calculate the delta frequency, DF, for every GW task in queue.
+# Delta frequencies (DF) of all GW tasks are later filtered for relevant tasks.
 # This regex will not match Gamma-ray pulsar search #5 task IDs.
-# Delta frequencies (DF) of all tasks are later filtered for relevant tasks.
 # shellcheck disable=SC2162
 while read name; do
     if [[ $name =~ $gravtask_tag ]]; then
@@ -550,13 +552,15 @@ while read name; do
         f2=$(echo $frequencies | cut -d" " -f 2)
         df=$(bc <<<"scale=2; $f2 - $f1")
         allDFs="${allDFs}"$'\n'"$df" # First pass prepends a newline, same as $states.
-    else
-        continue
+    else  # is not GW task, so make a placeholder for DF value.
+        df="na"
+        allDFs="${allDFs}"$'\n'"$df"
     fi
 done <<<"$names"
 
 # Need to have relevant data from each task in one row. Lines in vars should be in register.
-findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates"))
+#   Works when only GW tasks are in queue.
+findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo "$actstates"))
 
 # Get DFs of all running (scheduled) tasks.
 # Get DF of all waiting (preempted) tasks and the next waiting task to run.
@@ -572,7 +576,7 @@ cnt=0
 readyDF_hi=0
 # shellcheck disable=SC2162
 while read line; do
-    if [[ $line =~ scheduled ]]; then  # < Running
+    if [[ $line =~ EXECUTING ]]; then  # < Running tasks
         runDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
         runDF_all="${runDF_all}$runDF " # Used only for stdout or logging
     fi
