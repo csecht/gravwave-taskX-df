@@ -522,7 +522,7 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
+if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)) && [[ $monitor_only == no ]]; then
     minimize_X=yes
     echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
 fi
@@ -559,7 +559,6 @@ while read name; do
 done <<<"$names"
 
 # Need to have relevant data from each task in one row. Lines in vars should be in register.
-#   Works when only GW tasks are in queue.
 findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo "$actstates"))
 
 # Get DFs of all running (scheduled) tasks.
