@@ -489,13 +489,12 @@ elif ((num_run == 0)); then
         exit 0
     fi
 
-    # NOTE: This will run also when user has manually suspended all tasks.
+    # NOTE: This will run also when user has suspended all tasks or auto-suspend is active.
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
     echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
     echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
     sleep $((sleep_factor * sleep_t))
 
-#   echo "Total tasks in queue: $num_all_tasks, Number ready to report: $num_uploaded"  # DEBUG#######################
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
@@ -683,7 +682,7 @@ vGB_total=$(vgbtotal)
 # $report_int, set in  .cfg, is the number of minutes between reports.
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
-#report_int=1  ## DEBUG
+#report_int=1  ## TESTING
 if ((curr_X > 0)); then
     taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
 elif ((curr_X == 0)); then
@@ -701,7 +700,7 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
 # OTHERWISE, report interval is based on $report_int value (set in .cfg).
-#   Script cycle count, $cycle_num, is passed from taskXDF-timer as an argument.
+#   Current script cycle count, $cycle_num, is passed from taskXDF-timer as an argument.
 timer_pid=$(pgrep taskXDF-timer)
 
 if [[ $timer_pid ]]; then
@@ -729,8 +728,8 @@ fi
 #   so need to pause the script, then check whether vram% reaches set minimum limit.
 # This should help provide more realistic VRAM% values for estimating $vpct_new.
 # $sleep_t is set in  .cfg.
-#vpct_min=$(bc <<<"100 * ${taskDFgb[.10]} / $vGB_total")  ##DEBUG
-#sleep_t=1  ## DEBUG
+#vpct_min=$(bc <<<"100 * ${taskDFgb[.10]} / $vGB_total")  ##TESTING
+#sleep_t=1  ## TESTING
 sleep_factor=2
 if ((vpct_curr < vpct_min)); then
     echo -n "$(date "+%b %d %T") Pausing script $((sleep_factor * sleep_t)) sec:" | tee -a $log_file
@@ -758,7 +757,7 @@ fi
 # Condition is expected to run only after task X decrements in the previous script cycle.
 # Previous task X decrement to lowest X should lower GTT% enough to avoid suspension.
 # $sleep_t is set in  .cfg.
-#sleep_t=2  ##DEBUG
+#sleep_t=2  ##TESTING
 sleep_factor=4
 if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
