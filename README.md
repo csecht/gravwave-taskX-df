@@ -7,16 +7,16 @@ The package consists of the files, taskXDF, taskXDF-timer, and taskXDF.cfg. All 
 
 The package monitors GPU memory usages and delta frequency (DF) values of current and pending tasks, then evaluates whether to increase, decrease, or maintain the task multiple for running concurrent tasks (task X). Changes to task X automatically are made by the script by changing the value of <gpu_usage> in the app_config.xml file. Script actions and metrics are reported to the terminal window and to a log file, taskXDF.log.
 
-Script execution on timed intervals is controlled through the timer script, taskXDF-timer, run from the command line. A single-run status report is available with the --status parameter entered as taskXDF-timer --status or taskXDF --status.  
+Script execution on timed intervals is controlled through the timer script, taskXDF-timer, which is run from the command line. A 1-and-done status report is available with the --status parameter entered as "taskXDF-timer --status" or "taskXDF --status". Changes to taskX can be avoided while still running timed intervals by setting "monitor_only=yes" in the taskXDF.cfg configuration file.
 
-User-specified run parameters are set in the taskXDF.cfg. This configuration file can be edited with any text editor and can be edited on-the-fly while the timer is running, which may be useful to optimize settings as GW tasks run. Read the file comments to understand the settings.
+Additional user-specified run parameters are set in taskXDF.cfg. This configuration file can be edited with any text editor and can be edited on-the-fly while the timer is running, which may be useful to optimize settings as GW tasks run. Read the file comments to understand the settings.
 
 The timer script is executed with a time parameter argument in seconds; e.g., `~$ ./taskXD-timer 60`. 
 Usage details can be read with `~$ ./taskXD-timer --help`
 
 Additional details for use are provided in the comments of the scripts and .cfg text file. Please read through those before using to understand what's going on. 
 
-These scripts are written in bash ver.5. They have only been tested in Ubuntu 18.04 and 20.04.
+These scripts are written in bash ver.5.
 
 Successful execution will display like this in the terminal window:
 ```
