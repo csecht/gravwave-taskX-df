@@ -13,13 +13,13 @@
 
 time_arg=$1
 
-# Need to read $mod and log path, then create .log in case it is not present.
+# Need to read configuration settings and create .log in case it is not present.
 . ./taskXDF.cfg
 touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.6.6'
+version='0.7.0'
 
 if ((time_arg > 0 && time_arg < 60)); then
     time_arg=60
@@ -100,11 +100,12 @@ fi
 # Provide an initial information message when timer is started.
 echo "Currently running $script to execute $target on an interval of $time_arg seconds.
 (can be stopped with CTRL+C)
-A status report is issued every $mod minutes, as set in the taskXDF.cfg file."
+A report is issued every $report_int interval cycles, as set in the $target.cfg file." | tee -a $log_file
 
 # monitor_only is set in .cfg file.
 if [[ $monitor_only == yes ]]; then
-    echo "Running in monitor mode, as set in .cfg. Task X will not be changed."
+    echo "Running in monitor mode, as set in $target.cfg. Task X will not be changed,
+    but auto-suspend of long-running tasks is active if set in $target.cfg." | tee -a $log_file
 elif [[ $monitor_only == no ]]; then
     echo "Running..."
 fi
@@ -116,26 +117,28 @@ echo -n "————————————————│——————�
 echo "————————————————————————————————————————"
 
 # Run continuously until manually stopped. Runs the taskXDF (target) bash script each cycle.
-# The --go argument is used as a tag so that time interval value can be passed to taskXDF for time calculations.
+# The --go argument is used as a tag so that time interval value can be passed to $target for time calculations.
+# The cycle arg passes the cycle count to $target so that $report_int can be used.
 # A reminder is provided for how to stop once every 120 interval cycles of the main script. (expect a 60 sec. cycle)
-# The actual number of status reports between reminders depends on the $mod setting in the -cfg file.
+# The actual number of status reports between reminders depends on the $report_int setting in the .cfg file.
 #   The reminder cycle interval, (( cycle == digit )), can be set to the user's liking.
 cycle=0
 yikes=0
+report_t=$((time_arg * report_int))
 while [[ $go == true ]]
 do
-    /bin/bash ./${target} --go${time_arg}
+    /bin/bash ./${target} --go${time_arg} $cycle
     sleep $time_arg
     ((cycle++))
     ((yikes++))
     if  [[ $cycle == 120 ]] ; then
-        echo ">> $script is executing $target every $time_arg seconds and reporting every $mod minutes. <<
-        (can be stopped with CTRL+C)"
+        echo ">> $script is executing $target every $time_arg seconds and reporting every $report_t seconds. <<
+        (can be stopped with CTRL+C)" | tee -a $log_file
         echo
-        echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
-        printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
-        echo -n "————————————————│————————│———————│——————│————————│———│"
-        echo "————————————————————————————————————————"
+        echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
+        printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n" | tee -a $log_file
+        echo -n "————————————————│————————│———————│——————│————————│———│" | tee -a $log_file
+        echo "————————————————————————————————————————" | tee -a $log_file
         cycle=0
     fi
 

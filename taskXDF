@@ -194,10 +194,12 @@ fi
 # Script argument of --status is normally passed from timer script.
 # The --go tagged interval time argument is passed as the time argument from the timer script.
 # Terminal font colors are defined in .cfg.
+# Cycle number is passed from taskXDF-timer as an argument.
 status_only=no
+# shellcheck disable=SC2116
 if [[ $1 =~ --go ]]; then
-    # shellcheck disable=SC2116
     interval_time=$(echo ${1#--go})
+    cycle_num=$2
 elif [[ $1 =~ --status ]]; then
     status_only=yes
     # Need to over-ride configurations in taskXDF.cfg to avoid errors and unwanted actions.
@@ -237,7 +239,7 @@ if [[ "$valid_Xs" =~ [0.A-Za-z] ]]    ||
     [[ $vpct_min =~ ^[0]|[.A-Za-z] ]] ||
     [[ $gpct_max =~ ^[0]|[A-Za-z] ]]  ||
     [[ $sleep_t =~ ^[0]|[A-Za-z] ]]   ||
-    [[ $mod =~ ^[0]|[.A-Za-z] ]]      ||
+    [[ $report_int =~ ^[0]|[.A-Za-z] ]]  ||
     [[ $ttime_max =~ ^[0]|[.A-Za-z ]]; then
     notice_tone2
     echo "Some values in .cfg file accept decimals, some accept only integers,
@@ -319,7 +321,7 @@ while read name; do
 done <<<"$names"
 if [[ $status_only == no ]] && ((invaltask_num > 0)); then
     echo "Tasks other than $gravtask_tag and LATeah are in queue. Task multiplicities may be invalid." | tee -a $log_file
-    echo "    Task X will be set to the lowest configured value: $lowest_X"
+    echo "    Task X will be set to the lowest configured value: $lowest_X"  | tee -a $log_file
     minimize_X=yes
     notice_tone2
 fi
@@ -440,7 +442,7 @@ if [[ $running_names ]]; then
                 notice_tone3
                 break
             elif [[ $auto_suspend == no ]]; then
-                echo "    It may need to be suspended or perhaps aborted." | tee -a $log_file
+                echo "    It may need to be temporarily suspended or perhaps aborted." | tee -a $log_file
                 notice_tone1
             fi
         fi
@@ -552,8 +554,8 @@ while read name; do
         f2=$(echo $frequencies | cut -d" " -f 2)
         df=$(bc <<<"scale=2; $f2 - $f1")
         allDFs="${allDFs}"$'\n'"$df" # First pass prepends a newline, same as $states.
-    else  # is not GW task, so make a placeholder for DF value.
-        df="na"
+    elif [[ ! $name =~ $gravtask_tag ]]; then  # Make a DF placeholder for non-GW task.
+        df=0
         allDFs="${allDFs}"$'\n'"$df"
     fi
 done <<<"$names"
@@ -611,15 +613,15 @@ fi
 
 # When no GW tasks are ready to start or currently running, provide a heads-up.
 # [ -z "${num##[0-9]*}" ]
-integer="[0-9]"
+integer="[1-9]"
 if [[ ! $readyDF_lookahead =~ $integer ]]; then
     readyDF_lookahead="na"
-    echo "$(date "+%b %d %T") NO GW TASKS ARE READY"
+    echo "$(date "+%b %d %T") The next to run is not a GW task"
 #    notice_tone2
 fi
 if [[ ! $runDF_all =~ $integer ]]; then
     runDF_all="na"
-    echo "$(date "+%b %d %T") NO GW TASKS ARE RUNNING"
+    echo "$(date "+%b %d %T") NO GW TASKS ARE RUNNING (may be because of task suspension)"
 fi
 
 # Set up associative array to get the VRAM GB requirement of a task from its DF.
@@ -678,17 +680,17 @@ vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
 ######################## Report task and GPU metrics on the configured interval.  ##################
-# $mod (modulus), set in  .cfg, is the number of minutes between reports.
+# $report_int, set in  .cfg, is the number of minutes between reports.
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
-#mod=1  ## DEBUG
+#report_int=1  ## DEBUG
 if ((curr_X > 0)); then
     taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
 elif ((curr_X == 0)); then
     taskGB='n/a'
 fi
 
-tic=10#$(date +%M)
+#tic=10#$(date +%M)
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 date=$(date "+%b %d")
 time=$(date "+%T")
@@ -700,15 +702,15 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 # An initial report is issued on startup and status_only == yes condition.
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
-# OTHERWISE, report interval is based on $mod value (set in .cfg).
-#    NOTE that $mod intervals are based on actual clock time, not script elapsed time.
+# OTHERWISE, report interval is based on $report_int value (set in .cfg).
+#   Script cycle count, $cycle_num, is passed from taskXDF-timer as an argument.
 timer_pid=$(pgrep taskXDF-timer)
 
 if [[ $timer_pid ]]; then
     # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
-if ((timer_uptime < 10)) || [ $((tic % mod)) -eq 0 ]; then
+if ((timer_uptime < 10)) || [ $((cycle_num % report_int)) -eq 0 ]; then
     echo -n "$date $time │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
@@ -747,7 +749,7 @@ if ((vpct_curr < vpct_min)); then
         gttpct_curr_hi=$(gttpct_hi)
         if ((vpct_curr < vpct_min)); then
             echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below limit." | tee -a $log_file
-            echo " Check Boinc Manager and settings in  .cfg." | tee -a $log_file
+            echo " Check Boinc Manager and settings in .cfg file." | tee -a $log_file
             notice_tone2
         fi
     fi
@@ -777,7 +779,7 @@ if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); 
         gttpct_curr_hi=$(gttpct_hi)
         if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
             echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr_hi remains" >>$log_file
-            echo " above limit. Check gpct_max setting in  .cfg." >>$log_file
+            echo " above limit. Check gpct_max setting in  .cfg. file" >>$log_file
         fi
     fi
 
