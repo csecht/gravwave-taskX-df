@@ -341,7 +341,6 @@ fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 # $frac_xx are used in main body to evaluate increasing task X when a task is near completion
 #   or just begun running.
 # Evaluate only when $fracdone is not empty; if empty, set values to prevent a taskX increase.
-# TODO: CHECK whether this works with mixed tasks (non-GW tasks also running).
 frac_hi=0
 frac_lo=1
 if [[ $fracdone ]]; then
@@ -623,11 +622,11 @@ fi
 # When no GW tasks are ready to start or are currently running, provide a heads-up.
 integer="[0-9]"
 if [[ ! $readyDF_lookahead =~ $integer ]]; then
-    echo "$(date "+%b %d %T") A ready task is not a GW task"
+    echo "$(date "+%b %d %T") A non-GW task is ready to run."
 fi
 
 if [[ $runDF_all =~  na  ]]; then
-    echo "$(date "+%b %d %T") Non-GW tasks are running" | tee -a $log_file
+    echo "$(date "+%b %d %T") Non-GW task(s) running" | tee -a $log_file
 fi
 
 if [[ ! $runDF_all =~ $integer ]]; then
