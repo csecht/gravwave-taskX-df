@@ -563,7 +563,7 @@ done <<<"$names"
 
 # Need to have relevant data from each task in one row. Lines in vars should be in register.
 findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo "$actstates"))
-
+#echo "$findDFs"  #  <(printf "\n$names")
 # Get DFs of all running (scheduled) tasks.
 # Get DF of all waiting (preempted) tasks and the next waiting task to run.
 # Get DF of all n ready (downloaded & uninitialized) tasks, given n GPUs, and next ready task.
@@ -598,7 +598,7 @@ while read line; do
             fi
         done
     fi
-
+# TODO: FIX readyDF_lookahead tasks are not what are run next. Ordering has gone wrong; for all DFs?
     if [[ $line =~ downloaded[[:space:]]uninitialized ]]; then # < Ready to start
         cnt=$((cnt + 1))
         if ((cnt <= num_gpu)); then

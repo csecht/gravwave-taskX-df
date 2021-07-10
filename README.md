@@ -1,15 +1,15 @@
 # gravwave-taskX-df
 Scripts to automatically adjust concurrency of E@H gravitational wave tasks running on AMD GPUs
 
-These taskXDF bash shell scripts are for Linux systems with one or more AMD GPUs running Einstein@Home O2MDF gravitational wave GPU tasks through BOINC. Supported AMD GPUs are Ellesmere, Polaris, Vega, or Navi. nVIDIA cards are not currently supported. The program will not work in mixed task queues; all tasks in queue must be of the gravitational wave O2MDF work series.
+These taskXDF bash shell scripts are for Linux systems with one or more AMD GPUs running Einstein@Home O2MDF gravitational wave GPU tasks through BOINC. Supported AMD GPUs are Ellesmere, Polaris, Vega, or Navi. nVIDIA cards are not currently supported. The program will work in mixed GPU task queues with Gamma Ray tasks. Other task apps have not been tested.
 
 The package consists of the files, taskXDF, taskXDF-timer, and taskXDF.cfg. All files should be run from within the same directory.
 
-The package monitors GPU memory usages and delta frequency (DF) values of current and pending tasks, then evaluates whether to increase, decrease, or maintain the task multiple for running concurrent tasks (task X). Changes to task X automatically are made by the script by changing the value of <gpu_usage> in the app_config.xml file. Script actions and metrics are reported to the terminal window and a log file, taskXDF.log.
+The package monitors GPU memory usages and delta frequency (DF) values of current and pending tasks, then evaluates whether to increase, decrease, or maintain the task multiple for running concurrent tasks (task X). Changes to task X automatically are made by the script by changing the value of <gpu_usage> in the app_config.xml file. Script actions and metrics are reported to the terminal window and to a log file, taskXDF.log.
 
-Script execution is controlled through the timer script, taskXDF-timer, run from the command line. 
+Script execution on timed intervals is controlled through the timer script, taskXDF-timer, run from the command line. A single-run status report is available with the --status parameter entered as taskXDF-timer --status or taskXDF --status.  
 
-Basic user-specified run parameters are set in the taskXDF.cfg. This configuration file can be edited with any text editor and can be edited on-the-fly while the timer is running, which may be useful to optimize settings as GW tasks run. Read the file comments to understand the settings.
+User-specified run parameters are set in the taskXDF.cfg. This configuration file can be edited with any text editor and can be edited on-the-fly while the timer is running, which may be useful to optimize settings as GW tasks run. Read the file comments to understand the settings.
 
 The timer script is executed with a time parameter argument in seconds; e.g., `~$ ./taskXD-timer 60`. 
 Usage details can be read with `~$ ./taskXD-timer --help`
@@ -55,7 +55,7 @@ A status report will display upon execution and list the current time. Subsequen
 Rarely, a GPU card running gravitation wave tasks will lose compute ability, thus
 delaying progress and, hours later, either time-out or exit with a 
 computation error. By default, this script provides a warning when a task takes 
-more than 20 minutes to complete. This time can be set in the taskXDF.cfg file. 
-There an option in taskXDF.cfg to abort a too-long task; the default setting is
-auto_abort=no. You can change this to auto_abort=yes, but be sure to set a reasonable
+more than 40 minutes to complete. This time can be set in the taskXDF.cfg file. 
+There an option in taskXDF.cfg to suspend a too-long task; the default setting is
+auto_suspend=no. You can change this to auto_suspend=yes, but be sure to set a reasonable
 task time limit.
