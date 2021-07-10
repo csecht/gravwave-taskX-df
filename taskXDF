@@ -208,7 +208,7 @@ elif [[ $1 =~ --status ]]; then
     ttime_max=60
     # After printing headers here, script runs the initial report (in main eval body) then exits.
     echo
-    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
     printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
     echo -n "————————————————│————————│———————│——————│————————│———│"
     echo "————————————————————————————————————————"
@@ -641,13 +641,13 @@ fi
 if ((size_log >= logsize_lim)); then
     # NOTE: not tee -a option on printf, so notification will overwrite file.
     printf "\n*** The file $log_file was cleared because it reached $size_log. ***\n\n" | tee $log_file
-    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
+    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
     echo "DFs: [running] [waiting] [ready]" >>$log_file
     echo
     echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
     echo "----------------------------------------" >>$log_file
 elif ((size_log == 0)); then
-    echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
+    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
     echo "DFs: [running] [waiting] [ready]" >>$log_file
     echo
     echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
@@ -692,8 +692,6 @@ fi
 
 #tic=10#$(date +%M)
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
-date=$(date "+%b %d")
-time=$(date "+%T")
 
 # Need pretty terminal output,
 # queued │ VRAM% │ GTT% │ taskGB │
@@ -711,7 +709,7 @@ if [[ $timer_pid ]]; then
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
 if ((timer_uptime < 10)) || [ $((cycle_num % report_int)) -eq 0 ]; then
-    echo -n "$date $time │ " | tee -a $log_file
+    echo -n "$(date "+%b %d %T") │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
     # ..but need to remove font color escape codes from file text.

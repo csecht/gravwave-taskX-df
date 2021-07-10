@@ -111,7 +111,7 @@ elif [[ $monitor_only == no ]]; then
 fi
 echo
 
-echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
 printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
 echo -n "————————————————│————————│———————│——————│————————│———│"
 echo "————————————————————————————————————————"
@@ -135,7 +135,7 @@ do
         echo ">> $script is executing $target every $time_arg seconds and reporting every $report_t seconds. <<
         (can be stopped with CTRL+C)" | tee -a $log_file
         echo
-        echo -n "date     time   │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
+        echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
         printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n" | tee -a $log_file
         echo -n "————————————————│————————│———————│——————│————————│———│" | tee -a $log_file
         echo "————————————————————————————————————————" | tee -a $log_file
