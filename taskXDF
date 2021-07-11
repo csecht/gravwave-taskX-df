@@ -299,7 +299,6 @@ if [[ ! $boinc_cmd ]]; then
     exit 1
 fi
 
-
 # TODO: find out $tasks value when there are no tasks in queue. Is the var empty?
 tasks="$( ${boinc_cmd} --get_tasks )"
 # Parse task names from all queued tasks; used for calculating DF.
@@ -370,7 +369,12 @@ if [[ $names ]]; then
 fi
 
 ########TESTING ################
-#task_sum1=$((validtask_num + invaltask_num))
+if ((num_all_tasks == 0)); then
+    echo "TESTING: this is the output of <boinccmd --get_tasks> when there are no tasks." | tee -a $log_file
+    echo "$tasks"  | tee -a $log_file
+    echo "END TESTING (delete this test code after it runs)"  | tee -a $log_file
+fi
+#task_sum1=((validtask_num + invaltask_num))
 #names_sum=$(echo "$tasks" | grep -c '^   name')
 #echo "Task count:$num_all_tasks vs. sum of valid & invalid tasks:$task_sum1 vs. names count:$names_sum."
 #echo "Invalid task count:$invaltask_num."
