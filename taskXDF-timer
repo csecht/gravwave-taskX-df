@@ -63,12 +63,12 @@ elif [[ $# != 1 ]] ||
     e.g., $0 60
     Values less than 60 will be converted to 60. Decimal seconds are invalid.
 
-    Optional arguments: --header --status --help
+    Optional arguments: --header,  --status, or --help
         --header provides explanation of types of interval data reported; no interval time needed.
         --status provides current boinc and GPU run metrics; does not change task X.
         --help brings up this message.
 
-    This timer script provides continuous timed runs of the taskXDF bash script.
+    This timer script provides continuous timed runs of the $target bash script.
 
     A time interval of 0 (zero) provides a one-off status report from $target,
         otherwise a non-zero interval time provides interval reports and taskX adjustments.
@@ -82,7 +82,7 @@ elif [[ $# != 1 ]] ||
 
     A log file of Terminal output is created in the current folder.
 
-    Numerous script run parameters can be configured in the taskXDF.cfg text file.
+    Script run parameters can be configured in the $target.cfg text file.
 
     Version: $version"
     echo
@@ -111,18 +111,16 @@ elif [[ $monitor_only == no ]]; then
     echo "Running..."
 fi
 echo
-
 echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
 printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
-echo -n "————————————————│————————│———————│——————│————————│———│"
-echo "————————————————————————————————————————"
+echo "————————————————│————————│———————│——————│————————│———│————————————————————————————————————————"
 
 # Run continuously until manually stopped. Runs the taskXDF (target) bash script each cycle.
 # The --go argument is used as a tag so that time interval value can be passed to $target for time calculations.
 # The cycle arg passes the cycle count to $target so that $report_int can be used.
-# A reminder is provided for how to stop once every 120 interval cycles of the main script. (expect a 60 sec. cycle)
+# A reminder is provided for how to stop once every 120 interval cycles of the main script.
+#   The reminder cycle interval condition, if [[ $cycle == 120 ]], can be set to the user's liking.
 # The actual number of status reports between reminders depends on the $report_int setting in the .cfg file.
-#   The reminder cycle interval, (( cycle == digit )), can be set to the user's liking.
 cycle=0
 yikes=0
 report_t=$(bc <<<"scale=1; $time_arg * $report_int / 60")
