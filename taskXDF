@@ -533,7 +533,8 @@ fi
 #   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
 if ((num_run > 0)) && ((suspended_task > 0)); then
     echo
-    echo "$(date "+%b %d %T") *** You have a task suspended; now lowering task X... ***" | tee -a "$log_file"
+    echo "$(date "+%b %d %T") *** You have suspended a task; now minimizing task X... ***
+    Automatic task X changes will resume once no tasks are suspended." | tee -a "$log_file"
     minimize_X=yes
 fi
 
@@ -743,19 +744,19 @@ fi
 sleep_factor=2
 if ((vpct_curr < vpct_min)); then
     echo -n "$(date "+%b %d %T") Pausing script $((sleep_factor * sleep_t)) sec:" | tee -a $log_file
-    echo " VRAM% of $vpct_curr is below limit of $vpct_min" | tee -a $log_file
+    echo " VRAM% of $vpct_curr is below set limit of $vpct_min" | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
 
     vpct_curr=$(vrampct)
     gttpct_curr_hi=$(gttpct_hi)
     if ((vpct_curr < vpct_min)); then
-        echo "$(date "+%b %d %T") Another pause of $sleep_t sec: VRAM% $vpct_curr is below limit of $vpct_min"
+        echo "$(date "+%b %d %T") Another pause of $sleep_t sec: VRAM% $vpct_curr is below set limit of $vpct_min"
         sleep $sleep_t
 
         vpct_curr=$(vrampct)
         gttpct_curr_hi=$(gttpct_hi)
         if ((vpct_curr < vpct_min)); then
-            echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below limit." | tee -a $log_file
+            echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below set limit." | tee -a $log_file
             echo " Check Boinc Manager and settings in .cfg file." | tee -a $log_file
             notice_tone2
         fi
@@ -772,7 +773,7 @@ sleep_factor=4
 if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
     echo -n "$(date "+%b %d %T") ALL TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
-    echo " GTT% of $gttpct_curr_hi is above limit of $gpct_max" | tee -a $log_file
+    echo " GTT% of $gttpct_curr_hi is above set limit of $gpct_max" | tee -a $log_file
     sleep $sleep_t
 
     vpct_curr=$(vrampct)
@@ -805,7 +806,7 @@ fi
 # The logic is to knock X down, let GTT settle, then re-increment X each cycle if possible.
 if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
     minimize_X="yes"
-    echo "$(date "+%b %d %T") GTT% of $gttpct_curr_hi exceeds $gpct_max% limit." | tee -a $log_file
+    echo "$(date "+%b %d %T") GTT% of $gttpct_curr_hi exceeds $gpct_max% set limit." | tee -a $log_file
 fi
 
 # Need to get GB from highest DF of waiting or next ready task
