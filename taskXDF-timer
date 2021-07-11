@@ -125,7 +125,7 @@ echo "————————————————————————�
 #   The reminder cycle interval, (( cycle == digit )), can be set to the user's liking.
 cycle=0
 yikes=0
-report_t=$((time_arg * report_int))
+report_t=$(bc <<<"scale=1; $time_arg * $report_int / 60")
 while [[ $go == true ]]
 do
     /bin/bash ./${target} --go${time_arg} $cycle
@@ -133,7 +133,7 @@ do
     ((cycle++))
     ((yikes++))
     if  [[ $cycle == 120 ]] ; then
-        echo ">> $script is executing $target every $time_arg seconds; $target reports every $report_t seconds. <<
+        echo ">> $script is executing $target every $time_arg seconds; $target reports every $report_t minutes. <<
         (can be stopped with CTRL+C)" | tee -a $log_file
         echo
         echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
