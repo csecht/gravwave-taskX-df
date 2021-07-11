@@ -626,11 +626,11 @@ if [[ ! $readyDF_lookahead =~ $integer ]]; then
 fi
 
 if [[ $runDF_all =~  na  ]]; then
-    echo "$(date "+%b %d %T") Non-GW task(s) running" | tee -a $log_file
+    echo "$(date "+%b %d %T") Non-GW task(s) running." | tee -a $log_file
 fi
 
 if [[ ! $runDF_all =~ $integer ]]; then
-    echo "$(date "+%b %d %T") NO GW TASKS ARE RUNNING (may be because of task suspension)"
+    echo "$(date "+%b %d %T") NO GW TASKS ARE RUNNING (may be because of task suspension)."
 fi
 
 # Set up associative array to get the VRAM GB requirement of a task from its DF.

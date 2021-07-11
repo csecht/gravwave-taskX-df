@@ -132,7 +132,7 @@ do
     ((cycle++))
     ((yikes++))
     if  [[ $cycle == 120 ]] ; then
-        echo ">> $script is executing $target every $time_arg seconds and reporting every $report_t seconds. <<
+        echo ">> $script is executing $target every $time_arg seconds; $target reports every $report_t seconds. <<
         (can be stopped with CTRL+C)" | tee -a $log_file
         echo
         echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
@@ -141,12 +141,12 @@ do
         echo "————————————————————————————————————————" | tee -a $log_file
         cycle=0
     fi
-
     if ((yikes >= 2 * 10**4)); then
         days=$((time_arg * yikes / 60 / 24))
-        echo "   **** YIKES! $script has been running for $yikes cycles, $days days. ****"
-        echo "Just in case you forgot about me, I will EXIT now...."
+        echo "   **** YIKES! $script has been running for $yikes cycles, $days days. ****
+        Restart $script to get rid of this annoying reminder." | tee -a $log_file
+#        echo "Just in case you forgot about me, I will EXIT NOW...." | tee -a $log_file
         echo
-        exit
+#        exit 0
     fi
 done
