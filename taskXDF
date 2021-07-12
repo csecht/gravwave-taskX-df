@@ -39,16 +39,14 @@
 # The taskXDF .cfg configuration file is required, in the same folder,
 #   to set user-defined variables.
 
-########################## Set up variables and do some error checking ##########################
-#################################################################################################
+##################################### Set up top level variables  #################################
 
 #. ./taskXDF.cfg
 config_file=$(basename -- $0).cfg
 # shellcheck disable=SC1090
 . ./$config_file
 
-
-################################# Functions section #############################################
+################# Functions section #############################################
 # Need to know highest or lowest values among all active cards because boinc task multiples
 #   apply to all cards, thus need to use the most conservative memory values to apply to all.
 # For single card systems, something like this code example would suffice:
@@ -177,8 +175,9 @@ notice_tone3() {
         $playsound $sound_path 2> /dev/null
     fi
 }
-########################################### END of functions section ##############################
+################# END of Functions section ####################################
 
+######################## BEGIN error checking and variable validation #############################
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
 # If need to test this script while the timer script is running, then comment out the statement:
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
