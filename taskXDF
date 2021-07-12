@@ -136,42 +136,42 @@ sound_path=('/usr/share/sounds/freedesktop/stereo/dialog-warning.oga')
 # printf '/a' works with motherboard speaker, not external speakers?
 # sleep is to give time to execute successive tones.
 notice_tone1() {
-#    printf '\a'
-#    sleep 0.6
+    #    printf '\a'
+    #    sleep 0.6
     if [[ $playsound ]]; then
-        $playsound $sound_path 2> /dev/null
+        $playsound $sound_path 2>/dev/null
     fi
 }
 notice_tone2() {
-#    printf '\a'
-#    sleep 1
-#    printf '\a'
-#    sleep 1
+    #    printf '\a'
+    #    sleep 1
+    #    printf '\a'
+    #    sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path 2> /dev/null
+        $playsound $sound_path 2>/dev/null
     fi
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path 2> /dev/null
+        $playsound $sound_path 2>/dev/null
     fi
 }
 notice_tone3() {
-#    printf '\a'
-#    sleep 1
-#    printf '\a'
-#    sleep 1
-#    printf '\a'
-#    sleep 1
+    #    printf '\a'
+    #    sleep 1
+    #    printf '\a'
+    #    sleep 1
+    #    printf '\a'
+    #    sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path 2> /dev/null
+        $playsound $sound_path 2>/dev/null
     fi
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path 2> /dev/null
+        $playsound $sound_path 2>/dev/null
     fi
     sleep 1
     if [[ $playsound ]]; then
-        $playsound $sound_path 2> /dev/null
+        $playsound $sound_path 2>/dev/null
     fi
 }
 ################# END of Functions section ####################################
@@ -183,7 +183,7 @@ notice_tone3() {
 #  which is in the interval reporting section of the main body.
 # The timer script path is defined in .cfg file.
 taskprocs_num=$(pgrep -c $timer_script)
-if (( taskprocs_num > 1 )); then
+if ((taskprocs_num > 1)); then
     task_pids=$(pgrep $timer_script)
     notice_tone2
     echo "*** NOTICE: $taskprocs_num $timer_script processes are running. More than one is not advised. ***"
@@ -215,7 +215,6 @@ elif [[ $1 =~ --status ]]; then
     echo -n "————————————————│————————│———————│——————│————————│———│"
     echo "————————————————————————————————————————"
 elif [[ ! $1 ]] || [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then
-#elif [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then  # for TESTING
     echo "Use --status as argument to see current task and GPU metrics.
     For automation of task multiplicities, use the timer script.
     For instructions and version number, use the --help argument with the timer script."
@@ -236,12 +235,12 @@ highest_X=$(echo "${valid_Xs: -2}") # -2 accounts for trailing /n.
 lowest_X=$(echo "${valid_Xs::1}")
 
 # Exit point. Check for bad values from the .cfg file.
-if [[ "$valid_Xs" =~ [0.A-Za-z] ]]       ||
-    [[ $vpct_max =~ ^[0]|[.A-Za-z] ]]    ||
-    [[ $vpct_min =~ ^[0]|[.A-Za-z] ]]    ||
-    [[ $gpct_max =~ ^[0]|[A-Za-z] ]]     ||
-    [[ $sleep_t =~ ^[0]|[A-Za-z] ]]      ||
-    [[ $report_int =~ ^[0]|[.A-Za-z] ]]  ||
+if [[ "$valid_Xs" =~ [0.A-Za-z] ]] ||
+    [[ $vpct_max =~ ^[0]|[.A-Za-z] ]] ||
+    [[ $vpct_min =~ ^[0]|[.A-Za-z] ]] ||
+    [[ $gpct_max =~ ^[0]|[A-Za-z] ]] ||
+    [[ $sleep_t =~ ^[0]|[A-Za-z] ]] ||
+    [[ $report_int =~ ^[0]|[.A-Za-z] ]] ||
     [[ $ttime_max =~ ^[0]|[.A-Za-z ]]; then
     notice_tone2
     echo "Some values in $config_file file accept decimals, some accept only integers,
@@ -271,7 +270,7 @@ max_line=$(grep project_max_concurrent "$app_path")
 max_concurrent=$(echo $max_line | cut -d ">" -f2 | cut -d "<" -f1)
 max_num_tasks=$((num_gpu * highest_X))
 # Need to confirm whether <project_max_concurrent> is even set as an option in app_config.
-if [[ $max_line ]] && (( max_concurrent < max_num_tasks )); then
+if [[ $max_line ]] && ((max_concurrent < max_num_tasks)); then
     notice_tone1
     echo
     echo "HEADS UP! your app_config.xml <project_max_concurrent> setting of $max_concurrent
@@ -279,7 +278,7 @@ if [[ $max_line ]] && (( max_concurrent < max_num_tasks )); then
     as determined by your maximum X setting,$highest_X, in $config_file
     and your number of crunching GPUs, $num_gpu.
     You should raise the project_max or comment out the highest \$X value in $config_file.
-    Otherwise task X will not increase when the script reports it was increased."
+    Otherwise, task X will not increase when the script reports that it was increased."
 fi
 
 # Need to first get boinc data on all tasks in queue so relevant tasks can be parsed.
@@ -303,8 +302,8 @@ fi
 
 ############################### BEGIN task and GPU data collection ################################
 
-# TODO: find out $tasks value when there are no tasks in queue. Is the var empty?
-tasks="$( ${boinc_cmd} --get_tasks )"
+tasks="$(${boinc_cmd} --get_tasks)"
+# NOTE: when there are no tasks in queue, the value of $tasks will just be "======== Tasks ========".
 # Parse task names from all queued tasks; used for calculating DF.
 names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 
@@ -312,19 +311,20 @@ names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 #   ..but that task X can also be used for FGRP tasks.
 # In the main body, $minimize_X = yes sets task X to lowest valid configured X.
 minimize_X=no
-validtask_num=0
+#validtask_num=0
 invaltask_num=0
 # shellcheck disable=SC2162
-while read name; do
-    if [[ $name =~ $gravtask_tag ]] || [[ $name =~ LATeah ]]; then
-        ((validtask_num++))
-    else
-        ((invaltask_num++))
-    fi
-done <<<"$names"
-if [[ $status_only == no ]] && (( invaltask_num > 0 )); then
+# When no tasks in queue, $names is empty, so then don't increment $invaltask_num.
+if [[ $names ]]; then
+    while read name; do
+        if [[ ! $name =~ $gravtask_tag ]] && [[ ! $name =~ LATeah ]]; then
+            ((invaltask_num++))
+        fi
+    done <<<"$names"
+fi
+if [[ $status_only == no ]] && ((invaltask_num > 0)); then
     echo "Tasks other than $gravtask_tag and LATeah are in queue. Task multiplicities may be invalid." | tee -a $log_file
-    echo "    Task X will be set to the lowest configured value: $lowest_X"  | tee -a $log_file
+    echo "    Task X will be set to the lowest configured value: $lowest_X" | tee -a $log_file
     minimize_X=yes
     notice_tone2
 fi
@@ -359,25 +359,19 @@ if [[ $fracdone ]]; then
         fi
     done <<<"$fracdone"
 # elif [ "$fracdone" == "" ]; then # test for $fracdone being unset.
-elif [[ ! $fracdone ]]; then  # test for $fracdone being unset.
+elif [[ ! $fracdone ]]; then # test for $fracdone being unset.
     frac_hi=0.99
     frac_lo=0.01
 fi
-
 
 # Need to handle instance when no tasks are in queue b/c wc -l returns 1 for an empty "" $names;
 #   in that case num_all_tasks needs to be set to zero.
 num_all_tasks=0
 if [[ $names ]]; then
-  num_all_tasks=$(wc -l <<<"$names")
+    num_all_tasks=$(wc -l <<<"$names")
 fi
 
 ######## TESTING ################
-if (( num_all_tasks == 0 )); then
-    echo "TESTING: this is the output of <boinccmd --get_tasks> when there are no tasks." | tee -a $log_file
-    echo "$tasks"  | tee -a $log_file
-    echo "END TESTING (delete this test code after it runs)"  | tee -a $log_file
-fi
 #task_sum1=((validtask_num + invaltask_num))
 #names_sum=$(echo "$tasks" | grep -c '^   name')
 #echo "Task count:$num_all_tasks vs. sum of valid & invalid tasks:$task_sum1 vs. names count:$names_sum."
@@ -390,9 +384,8 @@ fi
 num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
 num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
 num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
-num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks")  # Ready to report.
+num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
 suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
-
 
 ############## BEGIN Auto-suspend condition; toggled in $config_file ##############################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
@@ -401,7 +394,7 @@ suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 touch ./currently_running_GWtasks.txt
 gravtask_file="./currently_running_GWtasks.txt"
 
-simple_gui_info="$( ${boinc_cmd} --get_simple_gui_info )"  # NOTE: includes uploading and waiting tasks.
+simple_gui_info="$(${boinc_cmd} --get_simple_gui_info)" # NOTE: includes uploading and waiting tasks.
 
 # A task name will always be read before its active state. Need to avoid the tag 'WU name: ', hence '^name'.
 # Save only GW task names, defined in .cfg, that are currently running (EXECUTING).
@@ -438,8 +431,8 @@ if [[ $running_names ]]; then
     while read -r name; do
         [[ -z $name ]] && continue # Skip blank lines that will mess things up here.
         runningtask_reps=$(grep -c $name $gravtask_file)
-        if (( runningtask_reps > max_runningtask_count )); then
-            echo "$(date "+%b %d %T") NOTICE! Task $name"              | tee -a $log_file
+        if ((runningtask_reps > max_runningtask_count)); then
+            echo "$(date "+%b %d %T") NOTICE! Task $name" | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
             if [[ $auto_suspend == yes ]]; then
                 echo "    It will be SUSPENDED for 10 sec to hasten completion." | tee -a $log_file
@@ -454,7 +447,7 @@ if [[ $running_names ]]; then
             fi
         fi
         #   Need to flag if any one task is still running since previous script cycle.
-        if ((  runningtask_reps > 1 )); then
+        if ((runningtask_reps > 1)); then
             all_tasks_new=no
         fi
     done <<<"$running_names"
@@ -467,7 +460,6 @@ if [[ $running_names ]]; then
     fi
 fi
 ############## END Auto-suspend condition #########################################################
-
 
 # Set current X if all is well; reset or update Project if not.
 # If all tasks are waiting to upload for some reason, update the Project in attempt
@@ -482,14 +474,14 @@ fi
 # Calculating X by num_run/num_gpu seems prone to errors from unaccounted BOINC or script conditions.
 # Base level sleep_t is set in  .cfg.
 sleep_factor=4
-if (( num_run > 0 )); then
+if ((num_run > 0)); then
     curr_X=$((num_run / num_gpu))
     # Need to cover condition when only one task is running, but >1 GPU are available.
-    if (( curr_X == 0 )); then
+    if ((curr_X == 0)); then
         curr_X=1
     fi
-elif (( num_run == 0 )); then
-    if (( num_all_tasks == 0 )); then
+elif ((num_run == 0)); then
+    if ((num_all_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check BOINC Manager." | tee -a $log_file
         echo
         notice_tone3
@@ -502,10 +494,10 @@ elif (( num_run == 0 )); then
     echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
     sleep $((sleep_factor * sleep_t))
 
-    if (( num_all_tasks == num_uploaded )); then
+    if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
-        echo "Your daily task limit may have been reached. Check BOINC Event log."  | tee -a $log_file
+        echo "Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
         notice_tone3
         sleep 90
     fi
@@ -514,10 +506,10 @@ elif (( num_run == 0 )); then
     sleep 1
     # num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l) # Use this if set -e being used.
     num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-    if (( num_run > 0 )); then
+    if ((num_run > 0)); then
         curr_X=$((num_run / num_gpu))
-        echo "$num_run tasks are running following BOINC task resumption or update."  | tee -a $log_file
-    elif (( num_run == 0 )); then
+        echo "$num_run tasks are running following BOINC task resumption or update." | tee -a $log_file
+    elif ((num_run == 0)); then
         echo "$(date "+%b %d %T") Still no tasks running. Check BOINC Manager." | tee -a $log_file
         echo
         notice_tone3
@@ -531,14 +523,14 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-if [[ ! "$valid_Xs" =~ $curr_X ]] && (( num_all_tasks > num_run )) && [[ $monitor_only == no ]]; then
+if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)) && [[ $monitor_only == no ]]; then
     minimize_X=yes
     echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
 fi
 
 # Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
 #   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
-if (( num_run > 0 )) && (( suspended_task > 0 )); then
+if ((num_run > 0)) && ((suspended_task > 0)); then
     echo
     echo "$(date "+%b %d %T") *** You have suspended a task; now minimizing task X... ***
     Automatic task X changes will resume once no tasks are suspended or waiting." | tee -a "$log_file"
@@ -562,7 +554,7 @@ while read name; do
         f2=$(echo $frequencies | cut -d" " -f 2)
         df=$(bc <<<"scale=2; $f2 - $f1")
         allDFs="${allDFs}"$'\n'"$df" # First pass prepends a newline, same as $states.
-    elif [[ ! $name =~ $gravtask_tag ]]; then  # Make a DF placeholder for non-GW task.
+    elif [[ ! $name =~ $gravtask_tag ]]; then # Make a DF placeholder for non-GW task.
         df=0
         allDFs="${allDFs}"$'\n'"$df"
     fi
@@ -574,8 +566,8 @@ findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo 
 # Get DFs of all running (scheduled) tasks.
 # Get DF of all waiting (preempted) tasks and the next waiting task to run.
 # Get DF of all n ready (downloaded & uninitialized) tasks, given n GPUs, and next ready task.
-#   Can look-ahead for more ready tasks with: if [ $cnt -le $(($num_gpu*$curr_X)) ]
-#     instead of: if ((cnt <= num_gpu)).
+#   Can look-ahead for more ready tasks with: if  (( cnt <= (($num_gpu*$curr_X)) ))
+#     instead of: if (( cnt <= num_gpu )).
 # This all works because boinc-client --get_tasks sorts tasks by order of action precedent.
 # Waiting and ready DFs are converted to VRAM usage, $vpct_new, in the main body.
 # IF no tasks are Ready to start, then readyDF_hi is empty(unset),
@@ -585,17 +577,17 @@ cnt=0
 readyDF_hi=0
 # shellcheck disable=SC2162
 while read line; do
-    if [[ $line =~ EXECUTING ]]; then  # < Running tasks
+    if [[ $line =~ EXECUTING ]]; then # < Running tasks
         runDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
-        if [[ ! $runDF ]]; then  # is not a GW task.
+        if [[ ! $runDF ]]; then # is not a GW task.
             runDF=na
         fi
         runDF_all="${runDF_all}$runDF " # Used only for stdout or logging
     fi
 
-    if [[ $line =~ preempted ]]; then  # < Waiting to run
+    if [[ $line =~ preempted ]]; then # < Waiting to run
         waitDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
-        if [[ ! $waitDF ]]; then  # is not a GW task.
+        if [[ ! $waitDF ]]; then # is not a GW task.
             waitDF=na
         fi
         waitDF_all="${waitDF_all}$waitDF "
@@ -607,12 +599,12 @@ while read line; do
     fi
     if [[ $line =~ downloaded[[:space:]]uninitialized ]]; then # < Ready to start
         cnt=$((cnt + 1))
-        if (( cnt <= num_gpu )); then
+        if ((cnt <= num_gpu)); then
             readyDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
-        if [[ ! $readyDF ]]; then  # is not a GW task.
-            readyDF=na
-        fi
-        readyDF_lookahead="${readyDF_lookahead}$readyDF "
+            if [[ ! $readyDF ]]; then # is not a GW task.
+                readyDF=na
+            fi
+            readyDF_lookahead="${readyDF_lookahead}$readyDF "
         fi
         for df in $readyDF_lookahead; do # Get the highest ready DF
             if [[ $(bc <<<"$df > $readyDF_hi") -eq 1 ]]; then
@@ -628,12 +620,13 @@ if [[ ! $waitDF_all ]]; then
 fi
 
 # When no GW tasks are ready to start or are currently running, provide a heads-up.
+#    But only when there are tasks in queue should $readyDF_lookahead be evaluated.
 integer="[0-9]"
-if [[ ! $readyDF_lookahead =~ $integer ]]; then
+if [[ $names ]] && [[ ! $readyDF_lookahead =~ $integer ]]; then
     echo "$(date "+%b %d %T") A non-GW task is ready to run."
 fi
 
-if [[ $runDF_all =~  na  ]]; then
+if [[ $runDF_all =~ na ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running." | tee -a $log_file
 fi
 
@@ -647,7 +640,6 @@ declare -A taskDFgb=([.10]=$df10 [.15]=$df15 [.20]=$df20 [.25]=$df25 [.30]=$df30
     [.40]=$df40 [.45]=$df45 [.50]=$df50 [.55]=$df55 [.60]=$df60 [.65]=$df65 [.70]=$df70
     [.75]=$df75 [.80]=$df80 [.85]=$df85 [.90]=$df90 [.95]=$df95 [1.00]=$df100)
 
-
 # Provide cleanup to prevent a run-away log file.
 # Default: 100 MB is the file size limit that triggers clearing its contents.
 # Provide data table header if starting with an empty file.
@@ -655,7 +647,7 @@ logsize_lim=100
 if [[ -f $log_file ]]; then
     size_log=$(du -0 -m $log_file | awk '{print $1}')
 fi
-if (( size_log >= logsize_lim )); then
+if ((size_log >= logsize_lim)); then
     # NOTE: not tee -a option on printf, so notification will overwrite file.
     printf "\n*** The file $log_file was cleared because it reached $size_log. ***\n\n" | tee $log_file
     echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
@@ -663,7 +655,7 @@ if (( size_log >= logsize_lim )); then
     echo
     echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
     echo "----------------------------------------" >>$log_file
-elif (( size_log == 0 )); then
+elif ((size_log == 0)); then
     echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
     echo "DFs: [running] [waiting] [ready]" >>$log_file
     echo
@@ -701,9 +693,9 @@ vGB_total=$(vgbtotal)
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
 #report_int=1  ## TESTING
-if (( curr_X > 0 )); then
+if ((curr_X > 0)); then
     taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
-elif (( curr_X == 0 )); then
+elif ((curr_X == 0)); then
     taskGB='n/a'
 fi
 
@@ -725,7 +717,7 @@ if [[ $timer_pid ]]; then
     # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
-if (( timer_uptime < 10 )) || [[ $((cycle_num % report_int)) -eq 0 ]]; then
+if ((timer_uptime < 10)) || [[ $((cycle_num % report_int)) -eq 0 ]]; then
     echo -n "$(date "+%b %d %T") │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
@@ -749,20 +741,20 @@ fi
 #vpct_min=$(bc <<<"100 * ${taskDFgb[.10]} / $vGB_total")  ##TESTING
 #sleep_t=1  ## TESTING
 sleep_factor=2
-if (( vpct_curr < vpct_min )); then
+if ((vpct_curr < vpct_min)); then
     echo -n "$(date "+%b %d %T") Pausing script $((sleep_factor * sleep_t)) sec:" | tee -a $log_file
     echo " VRAM% of $vpct_curr is below set limit of $vpct_min" | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
 
     vpct_curr=$(vrampct)
     gttpct_curr_hi=$(gttpct_hi)
-    if (( vpct_curr < vpct_min )); then
+    if ((vpct_curr < vpct_min)); then
         echo "$(date "+%b %d %T") Another pause of $sleep_t sec: VRAM% $vpct_curr is below set limit of $vpct_min"
         sleep $sleep_t
 
         vpct_curr=$(vrampct)
         gttpct_curr_hi=$(gttpct_hi)
-        if (( vpct_curr < vpct_min )); then
+        if ((vpct_curr < vpct_min)); then
             echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below set limit." | tee -a $log_file
             echo " Check BOINC Manager or the settings in the $config_file file." | tee -a $log_file
             notice_tone2
@@ -777,7 +769,7 @@ fi
 # $sleep_t is set in  .cfg.
 #sleep_t=2  ##TESTING
 sleep_factor=4
-if [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]] && (( curr_X == lowest_X )); then
+if [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]] && ((curr_X == lowest_X)); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
     echo -n "$(date "+%b %d %T") ALL TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
     echo " GTT% of $gttpct_curr_hi is above set limit of $gpct_max" | tee -a $log_file
@@ -821,16 +813,16 @@ fi
 #   and used to evaluate VRAM% limits for incrementing X in the $incr_X test.
 vGB_used=$(vgbused)
 vpct_new=0
-if (( num_wait >= 1 )); then
+if ((num_wait >= 1)); then
     waitGB=${taskDFgb[$waitDF_hi]}
     newGB=$(bc <<<"$vGB_used + $waitGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
 # Calculate predicted VRAM% only if tasks are "Ready to start" $readyDF_hi > 0 and
 #   tasks are running (frac_hi is not at stub value of 0) AND
 #   there are tasks Ready to start (readyDF_hi is not at stub value of 0).
-elif (( num_wait == 0 )) &&
-    [[ $(bc <<<"$frac_hi == 0") -eq 0 ]] &&  # i.e. frac_hi=0 is False; no tasks Running.
-    [[ $(bc <<<"$readyDF_hi == 0") -eq 0 ]]; then  # i.e. readyDF_hi=0 is False.
+elif ((num_wait == 0)) &&
+    [[ $(bc <<<"$frac_hi == 0") -eq 0 ]] && # i.e. frac_hi=0 is False; no tasks Running.
+    [[ $(bc <<<"$readyDF_hi == 0") -eq 0 ]]; then # i.e. readyDF_hi=0 is False.
     readyGB=${taskDFgb[$readyDF_hi]}
     newGB=$(bc <<<"$vGB_used + $readyGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
@@ -851,10 +843,10 @@ fi
 #   Check whether newly started tasks have progressed toward stable vram%.
 #   Check for excessive GTT% when VRAM% is within its acceptable range.
 incr_X="yes"
-if (( vpct_new >= vpct_max ))             ||
-    (( num_all_tasks == num_run ))        ||
-    (( vpct_curr < vpct_min ))            ||
-    (( num_uploading > 0 ))               ||
+if ((vpct_new >= vpct_max)) ||
+    ((num_all_tasks == num_run)) ||
+    ((vpct_curr < vpct_min)) ||
+    ((num_uploading > 0)) ||
     [[ $(bc <<<"$frac_hi >= 0.98") -eq 1 ]] ||
     [[ $(bc <<<"$frac_lo <= 0.05") -eq 1 ]] ||
     [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]]; then
@@ -863,42 +855,42 @@ fi
 
 ######### Main decision engine for increasing, decreasing, or minimizing task multiples. #########
 # Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
-if (( curr_X > 0 )); then
+if ((curr_X > 0)); then
     new_X=$curr_X
-elif (( curr_X == 0 )); then
+elif ((curr_X == 0)); then
     new_X=1
 fi
 change_X="no"
 # Increment taskX one value...
-if (( vpct_curr < vpct_max )) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; then
+if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; then
     for x in $valid_Xs; do
-        if (( curr_X < x)); then
+        if ((curr_X < x)); then
             new_X=$x
             gpu_use=$(bc <<<"scale=2; 1 / $new_X")
             change_X="yes"
             # echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
             break # Stop when first greater x is found.
-        elif (( curr_X >= x )); then
+        elif ((curr_X >= x)); then
             continue
         fi
     done
 
 # decrement taskX one value...
-elif (( vpct_curr >= vpct_max )) && [[ $minimize_X == no ]]; then
+elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
     for x in $reverse_Xs; do
-        if (( curr_X > x )); then
+        if ((curr_X > x)); then
             new_X=$x
             gpu_use=$(bc <<<"scale=2; 1 / $new_X")
             change_X="yes"
             # echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
             break # Stop when first lesser x is found.
-        elif (( curr_X <= x )); then
+        elif ((curr_X <= x)); then
             continue
         fi
     done
 
 # or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
-elif [[ $minimize_X = yes ]]; then
+elif [[ $minimize_X == yes ]]; then
     change_X=yes
     gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
     # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
@@ -909,9 +901,9 @@ set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
 indent=$(printf ' %.0s' {1..16})
-if (( curr_X > 0 )); then
+if ((curr_X > 0)); then
     taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
-elif (( curr_X == 0 )); then
+elif ((curr_X == 0)); then
     curr_X='n/a'
 fi
 sleep_factor=6 # Pause script after task change to equilibrate system.
