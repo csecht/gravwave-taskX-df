@@ -19,7 +19,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.7.2'
+version='0.7.3'
 
 if (( time_arg > 0 && time_arg < 60 )); then
     time_arg=60

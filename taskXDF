@@ -170,7 +170,7 @@ notice_tone3() {
 }
 ################# END of Functions section ####################################
 
-######################## BEGIN error checking and variable validation #############################
+#################### BEGIN error checking, housekeeping, and variable validation ##################
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
 # If need to test this script while the timer script is running, then comment out the statement:
 ## timer_uptime="$(ps --pid $(pgrep -i taskXDF-timer) -o etimes | grep -o '[0-9]*')"
@@ -292,7 +292,31 @@ if [[ ! $boinc_cmd ]]; then
     Exiting..."
     exit 1
 fi
-########################## END of error checking and variable validation ##########################
+
+# Provide cleanup to prevent a run-away log file.
+# Default: 100 MB is the file size limit that triggers clearing its contents.
+# Provide data table header if starting with an empty file.
+logsize_lim=100
+if [[ -f $log_file ]]; then
+    size_log=$(du -0 -m $log_file | awk '{print $1}')
+fi
+if ((size_log >= logsize_lim)); then
+    # NOTE: not tee -a option on printf, so notification will overwrite file.
+    printf "\n*** The file $log_file was cleared because it reached $size_log. ***\n\n" | tee $log_file
+    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
+    echo "DFs: [running] [waiting] [ready]" >>$log_file
+    echo
+    echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
+    echo "----------------------------------------" >>$log_file
+elif ((size_log == 0)); then
+    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
+    echo "DFs: [running] [waiting] [ready]" >>$log_file
+    echo
+    echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
+    echo "----------------------------------------" >>$log_file
+fi
+
+##################### END error checking, housekeeping, and variable validation ###################
 
 ############################### BEGIN task and GPU data collection ################################
 
@@ -622,35 +646,6 @@ elif [[ ! $runDF_all =~ $integer ]]; then
     echo "$(date "+%b %d %T") NO GW TASKS are running (or may have recently resumed)."
 fi
 
-# Set up associative array to get the VRAM GB requirement of a task from its DF.
-# Gb values of $df are set in  .cfg.
-declare -A taskDFgb=([.10]=$df10 [.15]=$df15 [.20]=$df20 [.25]=$df25 [.30]=$df30 [.35]=$df35
-    [.40]=$df40 [.45]=$df45 [.50]=$df50 [.55]=$df55 [.60]=$df60 [.65]=$df65 [.70]=$df70
-    [.75]=$df75 [.80]=$df80 [.85]=$df85 [.90]=$df90 [.95]=$df95 [1.00]=$df100)
-
-# Provide cleanup to prevent a run-away log file.
-# Default: 100 MB is the file size limit that triggers clearing its contents.
-# Provide data table header if starting with an empty file.
-logsize_lim=100
-if [[ -f $log_file ]]; then
-    size_log=$(du -0 -m $log_file | awk '{print $1}')
-fi
-if ((size_log >= logsize_lim)); then
-    # NOTE: not tee -a option on printf, so notification will overwrite file.
-    printf "\n*** The file $log_file was cleared because it reached $size_log. ***\n\n" | tee $log_file
-    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
-    echo "DFs: [running] [waiting] [ready]" >>$log_file
-    echo
-    echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
-    echo "----------------------------------------" >>$log_file
-elif ((size_log == 0)); then
-    echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " >>$log_file
-    echo "DFs: [running] [waiting] [ready]" >>$log_file
-    echo
-    echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
-    echo "----------------------------------------" >>$log_file
-fi
-
 ################################ END task and GPU data collection #################################
 
 ###################################################################################################
@@ -728,7 +723,6 @@ fi
 #   so need to pause the script, then check whether vram% reaches set minimum limit.
 # This should help provide more realistic VRAM% values for estimating $vpct_new.
 # $sleep_t is set in  .cfg.
-#vpct_min=$(bc <<<"100 * ${taskDFgb[.10]} / $vGB_total")  ##TESTING
 #sleep_t=1  ## TESTING
 sleep_factor=2
 if ((vpct_curr < vpct_min)); then
@@ -801,6 +795,12 @@ fi
 # Need to get GB from highest DF of waiting or next ready task
 #   and convert to VRAM% so that anticipated % can be added to actual current %
 #   and used to evaluate VRAM% limits for incrementing X in the $incr_X test.
+# Set up associative array to get the VRAM GB requirement of a task from its DF.
+# Gb values of $df are set in .cfg.
+declare -A taskDFgb=([.10]=$df10 [.15]=$df15 [.20]=$df20 [.25]=$df25 [.30]=$df30 [.35]=$df35
+    [.40]=$df40 [.45]=$df45 [.50]=$df50 [.55]=$df55 [.60]=$df60 [.65]=$df65 [.70]=$df70
+    [.75]=$df75 [.80]=$df80 [.85]=$df85 [.90]=$df90 [.95]=$df95 [1.00]=$df100)
+
 vGB_used=$(vgbused)
 vpct_new=0
 if ((num_wait >= 1)); then
