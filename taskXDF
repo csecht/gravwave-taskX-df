@@ -60,7 +60,7 @@ vgbtotal() {
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_tot=$(cat ${card_path}mem_info_vram_total)
         temp_tot=$(bc <<<"scale=2; $vm_tot / 1024^3")
-        if [ $(bc <<<"$temp_tot < $vGB_total") -eq 1 ]; then
+        if [[ $(bc <<<"$temp_tot < $vGB_total") -eq 1 ]]; then
             vGB_total=$temp_tot
         fi
     done
@@ -74,7 +74,7 @@ vgbused() {
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_used=$(cat ${card_path}mem_info_vram_used)
         temp_used=$(bc <<<"scale=2; $vm_used / 1024^3")
-        if [ $(bc <<<"$temp_used > $vGB_used") -eq 1 ]; then
+        if [[ $(bc <<<"$temp_used > $vGB_used") -eq 1 ]]; then
             vGB_used=$temp_used
         fi
     done
@@ -104,7 +104,7 @@ gttpct_hi() {
         gtt_used=$(cat ${card_path}mem_info_gtt_used)
         gtt_tot=$(cat ${card_path}mem_info_gtt_total)
         tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
-        if [ $(bc <<<"$tmp_gttpct_curr > $gttpct_curr_hi") -eq 1 ]; then
+        if [[ $(bc <<<"$tmp_gttpct_curr > $gttpct_curr_hi") -eq 1 ]]; then
             gttpct_curr_hi=$tmp_gttpct_curr
         fi
     done
@@ -119,7 +119,7 @@ gttpct_lo() {
         gtt_used=$(cat ${card_path}mem_info_gtt_used)
         gtt_tot=$(cat ${card_path}mem_info_gtt_total)
         tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
-        if [ $(bc <<<"$tmp_gttpct_curr < $gttpct_curr_lo") -eq 1 ]; then
+        if [[ $(bc <<<"$tmp_gttpct_curr < $gttpct_curr_lo") -eq 1 ]]; then
             gttpct_curr_lo=$tmp_gttpct_curr
         fi
     done
@@ -237,11 +237,11 @@ highest_X=$(echo "${valid_Xs: -2}") # -2 to account for trailing /n.
 lowest_X=$(echo "${valid_Xs::1}")
 
 # Exit point. Check for bad values from the .cfg file.
-if [[ "$valid_Xs" =~ [0.A-Za-z] ]]    ||
-    [[ $vpct_max =~ ^[0]|[.A-Za-z] ]] ||
-    [[ $vpct_min =~ ^[0]|[.A-Za-z] ]] ||
-    [[ $gpct_max =~ ^[0]|[A-Za-z] ]]  ||
-    [[ $sleep_t =~ ^[0]|[A-Za-z] ]]   ||
+if [[ "$valid_Xs" =~ [0.A-Za-z] ]]       ||
+    [[ $vpct_max =~ ^[0]|[.A-Za-z] ]]    ||
+    [[ $vpct_min =~ ^[0]|[.A-Za-z] ]]    ||
+    [[ $gpct_max =~ ^[0]|[A-Za-z] ]]     ||
+    [[ $sleep_t =~ ^[0]|[A-Za-z] ]]      ||
     [[ $report_int =~ ^[0]|[.A-Za-z] ]]  ||
     [[ $ttime_max =~ ^[0]|[.A-Za-z ]]; then
     notice_tone2
@@ -352,11 +352,11 @@ if [[ $fracdone ]]; then
     # shellcheck disable=SC2162
     while read frac; do
         tmpfrac=$frac
-        if [ $(bc <<<"$tmpfrac > $frac_hi") -eq 1 ]; then
+        if [[ $(bc <<<"$tmpfrac > $frac_hi") -eq 1 ]]; then
             frac_hi=$tmpfrac
         fi
 
-        if [ $(bc <<<"$tmpfrac < $frac_lo") -eq 1 ]; then
+        if [[ $(bc <<<"$tmpfrac < $frac_lo") -eq 1 ]]; then
             frac_lo=$tmpfrac
         fi
     done <<<"$fracdone"
@@ -602,7 +602,7 @@ while read line; do
         fi
         waitDF_all="${waitDF_all}$waitDF "
         for df in $waitDF_all; do
-            if [ $(bc <<<"$df > $waitDF_hi") -eq 1 ]; then # Get the highest waiting DF
+            if [[ $(bc <<<"$df > $waitDF_hi") -eq 1 ]]; then # Get the highest waiting DF
                 waitDF_hi=$df
             fi
         done
@@ -617,7 +617,7 @@ while read line; do
         readyDF_lookahead="${readyDF_lookahead}$readyDF "
         fi
         for df in $readyDF_lookahead; do # Get the highest ready DF
-            if [ $(bc <<<"$df > $readyDF_hi") -eq 1 ]; then
+            if [[ $(bc <<<"$df > $readyDF_hi") -eq 1 ]]; then
                 readyDF_hi=$df
             fi
         done
@@ -727,7 +727,7 @@ if [[ $timer_pid ]]; then
     # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
-if (( timer_uptime < 10 )) || [ $((cycle_num % report_int)) -eq 0 ]; then
+if (( timer_uptime < 10 )) || [[ $((cycle_num % report_int)) -eq 0 ]]; then
     echo -n "$(date "+%b %d %T") │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
@@ -779,7 +779,7 @@ fi
 # $sleep_t is set in  .cfg.
 #sleep_t=2  ##TESTING
 sleep_factor=4
-if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && (( curr_X == lowest_X )); then
+if [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]] && (( curr_X == lowest_X )); then
     ${boinc_cmd} --project http://einstein.phys.uwm.edu/ suspend
     echo -n "$(date "+%b %d %T") ALL TASKS SUSPENDED for $sleep_t sec.;" | tee -a $log_file
     echo " GTT% of $gttpct_curr_hi is above set limit of $gpct_max" | tee -a $log_file
@@ -787,14 +787,14 @@ if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && (( curr_X == lowest_X ))
 
     vpct_curr=$(vrampct)
     gttpct_curr_hi=$(gttpct_hi)
-    if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
+    if [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]]; then
         echo -n "$(date "+%b %d %T") Waiting another $sleep_t sec.;" >>$log_file
         echo " GTT% is still above $gpct_max" >>$log_file
         sleep $sleep_t
 
         vpct_curr=$(vrampct)
         gttpct_curr_hi=$(gttpct_hi)
-        if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
+        if [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]]; then
             echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr_hi remains" >>$log_file
             echo " above limit. Check gpct_max setting in the $config_file file" >>$log_file
         fi
@@ -813,7 +813,7 @@ fi
 
 # If GTT% stays high, then set flag to change to lowest valid X.
 # The logic is to knock X down, let GTT settle, then re-increment X each cycle if possible.
-if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
+if [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]]; then
     minimize_X="yes"
     echo "$(date "+%b %d %T") GTT% of $gttpct_curr_hi exceeds $gpct_max% set limit." | tee -a $log_file
 fi
@@ -831,12 +831,12 @@ if (( num_wait >= 1 )); then
 #   tasks are running (frac_hi is not at stub value of 0) AND
 #   there are tasks Ready to start (readyDF_hi is not at stub value of 0).
 elif (( num_wait == 0 )) &&
-    [ $(bc <<<"$frac_hi == 0") -eq 0 ] &&  # i.e. frac_hi=0 is False; no tasks Running.
-    [ $(bc <<<"$readyDF_hi == 0") -eq 0 ]; then  # i.e. readyDF_hi=0 is False.
+    [[ $(bc <<<"$frac_hi == 0") -eq 0 ]] &&  # i.e. frac_hi=0 is False; no tasks Running.
+    [[ $(bc <<<"$readyDF_hi == 0") -eq 0 ]]; then  # i.e. readyDF_hi=0 is False.
     readyGB=${taskDFgb[$readyDF_hi]}
     newGB=$(bc <<<"$vGB_used + $readyGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
-elif [ $(bc <<<"$readyDF_hi == 0") -eq 1 ]; then # i.e. readyDF_hi=0 is True; no tasks Ready to start.
+elif [[ $(bc <<<"$readyDF_hi == 0") -eq 1 ]]; then # i.e. readyDF_hi=0 is True; no tasks Ready to start.
     vpct_new=100
 fi
 #vpct_new=$((vpct_new * 2))                  ## TESTING
@@ -857,9 +857,9 @@ if (( vpct_new >= vpct_max ))             ||
     (( num_all_tasks == num_run ))        ||
     (( vpct_curr < vpct_min ))            ||
     (( num_uploading > 0 ))               ||
-    [ $(bc <<<"$frac_hi >= 0.98") -eq 1 ] ||
-    [ $(bc <<<"$frac_lo <= 0.05") -eq 1 ] ||
-    [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
+    [[ $(bc <<<"$frac_hi >= 0.98") -eq 1 ]] ||
+    [[ $(bc <<<"$frac_lo <= 0.05") -eq 1 ]] ||
+    [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]]; then
     incr_X="no"
 fi
 
