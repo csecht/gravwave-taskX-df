@@ -398,7 +398,8 @@ num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
 num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
 suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 
-############## BEGIN Auto-suspend condition; toggled in $config_file ##############################
+############## BEGIN Auto-suspend condition; toggled in $config_file ##########
+
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
 # Monitor how many script cycles (minutes) each task has run, and suspend it if past the configured limit.
 # Need to be sure the file is there.
@@ -470,7 +471,7 @@ if [[ $running_names ]]; then
         echo "$running_names" >"$gravtask_file"
     fi
 fi
-############## END Auto-suspend condition #########################################################
+############## END Auto-suspend condition #####################################
 
 # Set current X if all is well; reset or update Project if not.
 # If all tasks are waiting to upload for some reason, update the Project in attempt
@@ -582,7 +583,7 @@ findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo 
 # Get DF of all n ready (downloaded & uninitialized) tasks, given n GPUs, and next ready task.
 #   Can look-ahead for more ready tasks with: if  (( cnt <= (($num_gpu*$curr_X)) ))
 #     instead of: if (( cnt <= num_gpu )).
-# This all works because boinc-client --get_tasks sorts tasks by order of action precedent.
+# This all works because <boinc-client --get_tasks> sorts tasks by order of action precedent.
 # Waiting and ready DFs are converted to VRAM usage, $vpct_new, in the main body.
 # IF no tasks are Ready to start, then readyDF_hi is empty(unset),
 #    then is handled later with vpct_new declaration in if ((num_wait >= 1))...
@@ -649,7 +650,7 @@ fi
 ################################ END task and GPU data collection #################################
 
 ###################################################################################################
-#             BEGIN main body for reporting, evaluating run conditions, and setting task X
+#          BEGIN main body for reporting, evaluating run conditions, and setting task X
 ###################################################################################################
 
 # SUMMARY:
@@ -715,7 +716,7 @@ if [[ $status_only == yes ]]; then
     exit
 fi
 
-############################ End reporting timed interval metrics ####################################
+############################ End reporting of timed interval metrics ##############################
 
 # When a GPU is @ 1X concurrent tasks and a task has just begun running
 #   vram% may be below what is required to complete the task
@@ -843,8 +844,7 @@ if ((vpct_new >= vpct_max)) ||
     incr_X="no"
 fi
 
-######### Main decision engine for increasing, decreasing, or minimizing task multiples. #########
-# Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
+############## Main decision engine for changing task multiples. ##############
 if ((curr_X > 0)); then
     new_X=$curr_X
 elif ((curr_X == 0)); then
@@ -856,6 +856,7 @@ if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; 
     for x in $valid_Xs; do
         if ((curr_X < x)); then
             new_X=$x
+            # Need to convert task X to decimal fraction to use in app_config.xml.
             gpu_use=$(bc <<<"scale=2; 1 / $new_X")
             change_X="yes"
             # echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
@@ -879,14 +880,14 @@ elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
         fi
     done
 
-# or reset X to lowest valid X because: invalid task X, retained high GTT%, or suspended task.
+# or reset X to lowest valid X because of invalid task X, retained high GTT%, or suspended task.
 elif [[ $minimize_X == yes ]]; then
     change_X=yes
     gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
     # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
 fi
 
-########################### Edit app_config.xml and issue a task X change report ##################
+############## Edit app_config.xml and issue a task X change report ###########
 set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
@@ -896,9 +897,10 @@ if ((curr_X > 0)); then
 elif ((curr_X == 0)); then
     curr_X='n/a'
 fi
-sleep_factor=6 # Pause script after task change to equilibrate system.
+# Pause script after task change to equilibrate system.
+sleep_factor=6
 
-# Need to handle unknown event when gpu_use is not defined.
+# Need to handle unknown event where gpu_use is not defined.
 if [[ ! $gpu_use ]]; then
     gpu_use=1
 fi
@@ -917,4 +919,4 @@ elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%"   | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 fi
-######################### TH.. TH.. THAT'S ALL FOLKS! ############################
+######################### TH.. TH.. THAT'S ALL FOLKS! #########################
