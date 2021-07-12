@@ -177,7 +177,7 @@ notice_tone3() {
         $playsound $sound_path 2> /dev/null
     fi
 }
-########################################### END of functions section ############################
+########################################### END of functions section ##############################
 
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
 # If need to test this script while the timer script is running, then comment out the statement:
@@ -194,7 +194,7 @@ if ((taskprocs_num > 1)); then
     echo "You will receive process ID error messages as long as this continues..."
 fi
 
-# When need to just get the status report and not change taskX.
+# Set up run parameters for one-off status report; does not change taskX.
 # Script argument of --status is normally passed from timer script.
 # The --go tagged interval time argument is passed as the time argument from the timer script.
 # Terminal font colors are defined in .cfg.
@@ -302,6 +302,9 @@ if [[ ! $boinc_cmd ]]; then
     Exiting..."
     exit 1
 fi
+########################## END of error checking and variable validation ##########################
+###################################################################################################
+############################### BEGIN task and GPU data collection ################################
 
 # TODO: find out $tasks value when there are no tasks in queue. Is the var empty?
 tasks="$( ${boinc_cmd} --get_tasks )"
@@ -372,7 +375,7 @@ if [[ $names ]]; then
   num_all_tasks=$(wc -l <<<"$names")
 fi
 
-########TESTING ################
+######## TESTING ################
 if ((num_all_tasks == 0)); then
     echo "TESTING: this is the output of <boinccmd --get_tasks> when there are no tasks." | tee -a $log_file
     echo "$tasks"  | tee -a $log_file
@@ -382,7 +385,7 @@ fi
 #names_sum=$(echo "$tasks" | grep -c '^   name')
 #echo "Task count:$num_all_tasks vs. sum of valid & invalid tasks:$task_sum1 vs. names count:$names_sum."
 #echo "Invalid task count:$invaltask_num."
-################################
+################ END TESTING ################
 
 # NOTE: Do not use set -e with grep -c for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
@@ -394,7 +397,7 @@ num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks")  # Ready to report.
 suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 
 
-##############  BEGIN Auto-suspend condition; toggled in $config_file #########################################
+############## BEGIN Auto-suspend condition; toggled in $config_file ##############################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
 # Monitor how many script cycles (minutes) each task has run, and suspend it if past the configured limit.
 # Need to be sure the file is there.
@@ -466,7 +469,7 @@ if [[ $running_names ]]; then
         echo "$running_names" >"$gravtask_file"
     fi
 fi
-#### END Auto-suspend condition ######################################################################
+############## END Auto-suspend condition #########################################################
 
 
 # Set current X if all is well; reset or update Project if not.
@@ -570,7 +573,7 @@ done <<<"$names"
 
 # Need to have relevant data from each task in one row. Lines in vars should be in register.
 findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo "$actstates"))
-#echo "$findDFs"  #  <(printf "\n$names")
+
 # Get DFs of all running (scheduled) tasks.
 # Get DF of all waiting (preempted) tasks and the next waiting task to run.
 # Get DF of all n ready (downloaded & uninitialized) tasks, given n GPUs, and next ready task.
@@ -671,9 +674,9 @@ elif ((size_log == 0)); then
     echo "----------------------------------------" >>$log_file
 fi
 
-#################################################################################################
-#                          Main body for evaluation begins here
-#################################################################################################
+###################################################################################################
+#             BEGIN main body for reporting, evaluating run conditions, and setting task X
+###################################################################################################
 
 # SUMMARY:
 # The goal is to increase task X as much as possible while avoiding task suspensions
@@ -696,7 +699,7 @@ gttpct_curr_hi=$(gttpct_hi)
 vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
-######################## Report task and GPU metrics on the configured interval.  ##################
+##################### Report task and GPU metrics on the configured time interval.  ###############
 # $report_int, set in  .cfg, is the number of minutes between reports.
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
@@ -733,14 +736,14 @@ if ((timer_uptime < 10)) || [ $((cycle_num % report_int)) -eq 0 ]; then
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
 
-# Need to stop here if --status argument was evoked to execute script.
+# Need to stop script execution here if --status argument was evoked to execute script.
 if [[ $status_only == yes ]]; then
     exit
 fi
 
-############################ End reporting of interval metrics. ####################################
+############################ End reporting timed interval metrics ####################################
 
-# When a gpu is @1X and a task has just begun running
+# When a GPU is @ 1X concurrent tasks and a task has just begun running
 #   vram% may be below what is required to complete the task
 #   (or if otherwise unexpected low vram%),
 #   so need to pause the script, then check whether vram% reaches set minimum limit.
@@ -861,7 +864,7 @@ if ((vpct_new >= vpct_max))               ||
     incr_X="no"
 fi
 
-### The main decision engine for increasing, decreasing, or minimizing task multiples.
+######### Main decision engine for increasing, decreasing, or minimizing task multiples. #########
 # Task X is finally converted to decimal fraction to use as <gpu_usage> in app_config.xml.
 if ((curr_X > 0)); then
     new_X=$curr_X
@@ -904,7 +907,7 @@ elif [[ $minimize_X = yes ]]; then
     # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
 fi
 
-############################## Edit app_config.xml and issue change report ####################
+############################## Edit app_config.xml and issue a change report ####################
 set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
@@ -935,3 +938,4 @@ elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 fi
+######################### TH.. TH.. THAT'S ALL FOLKS! ############################
