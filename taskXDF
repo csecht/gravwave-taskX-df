@@ -111,19 +111,19 @@ gttpct_hi() {
 }
 
 # Function to calculate lowest GTT used% among AMD card(s).
-gttpct_lo() {
-    gttpct_curr_lo=100
-    for p in $amd_paths; do
-        card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
-        gtt_used=$(cat ${card_path}mem_info_gtt_used)
-        gtt_tot=$(cat ${card_path}mem_info_gtt_total)
-        tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
-        if [[ $(bc <<<"$tmp_gttpct_curr < $gttpct_curr_lo") -eq 1 ]]; then
-            gttpct_curr_lo=$tmp_gttpct_curr
-        fi
-    done
-    echo $gttpct_curr_lo
-}
+#gttpct_lo() {
+#    gttpct_curr_lo=100
+#    for p in $amd_paths; do
+#        card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
+#        gtt_used=$(cat ${card_path}mem_info_gtt_used)
+#        gtt_tot=$(cat ${card_path}mem_info_gtt_total)
+#        tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
+#        if [[ $(bc <<<"$tmp_gttpct_curr < $gttpct_curr_lo") -eq 1 ]]; then
+#            gttpct_curr_lo=$tmp_gttpct_curr
+#        fi
+#    done
+#    echo $gttpct_curr_lo
+#}
 
 # Functions to play tones in PC external speakers; Used for notifications.
 # Distros like Arch Linux, Gentoo, Lubuntu, may not have PulseAudio package installed,
@@ -133,45 +133,39 @@ playsound=$(command -v paplay)
 sound_path=('/usr/share/sounds/freedesktop/stereo/dialog-warning.oga')
 # Also use sound that should work in any Linux distro bash.
 # printf '/a' & echo -en '\007' source: https://stackoverflow.com/questions/1143386/in-a-bash-script-command-how-can-i-make-a-pc-beep-noise-or-play-a-sound-file
-# printf '/a' works with motherboard speaker, not external speakers?
+# printf '/a' works with motherboard speakers?
 # sleep is to give time to execute successive tones.
 notice_tone1() {
-    #    printf '\a'
-    #    sleep 0.6
     if [[ $playsound ]]; then
         $playsound $sound_path 2>/dev/null
+    elif [[ ! $playsound ]]; then
+        printf '\a'
     fi
 }
 notice_tone2() {
-    #    printf '\a'
-    #    sleep 1
-    #    printf '\a'
-    #    sleep 1
     if [[ $playsound ]]; then
         $playsound $sound_path 2>/dev/null
-    fi
-    sleep 1
-    if [[ $playsound ]]; then
+        sleep 1
         $playsound $sound_path 2>/dev/null
+    elif [[ ! $playsound ]]; then
+        printf '\a'
+        sleep 1
+        printf '\a'
     fi
 }
 notice_tone3() {
-    #    printf '\a'
-    #    sleep 1
-    #    printf '\a'
-    #    sleep 1
-    #    printf '\a'
-    #    sleep 1
     if [[ $playsound ]]; then
         $playsound $sound_path 2>/dev/null
-    fi
-    sleep 1
-    if [[ $playsound ]]; then
+        sleep 1
         $playsound $sound_path 2>/dev/null
-    fi
-    sleep 1
-    if [[ $playsound ]]; then
+        sleep 1
         $playsound $sound_path 2>/dev/null
+    elif [[ ! $playsound ]]; then
+        printf '\a'
+        sleep 1
+        printf '\a'
+        sleep 1
+        printf '\a'
     fi
 }
 ################# END of Functions section ####################################
@@ -324,7 +318,7 @@ if [[ $names ]]; then
 fi
 if [[ $status_only == no ]] && ((invaltask_num > 0)); then
     echo "Tasks other than $gravtask_tag and LATeah are in queue. Task multiplicities may be invalid." | tee -a $log_file
-    echo "    Task X will be set to the lowest configured value: $lowest_X" | tee -a $log_file
+    echo "    Task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
     minimize_X=yes
     notice_tone2
 fi
@@ -365,18 +359,11 @@ elif [[ ! $fracdone ]]; then # test for $fracdone being unset.
 fi
 
 # Need to handle instance when no tasks are in queue b/c wc -l returns 1 for an empty "" $names;
-#   in that case num_all_tasks needs to be set to zero.
-num_all_tasks=0
-if [[ $names ]]; then
-    num_all_tasks=$(wc -l <<<"$names")
+#   in that case $num_all_tasks needs to be set to zero.
+num_all_tasks=$(wc -l <<<"$names")
+if [[ ! $names ]]; then
+    num_all_tasks=0
 fi
-
-######## TESTING ################
-#task_sum1=((validtask_num + invaltask_num))
-#names_sum=$(echo "$tasks" | grep -c '^   name')
-#echo "Task count:$num_all_tasks vs. sum of valid & invalid tasks:$task_sum1 vs. names count:$names_sum."
-#echo "Invalid task count:$invaltask_num."
-######## END TESTING ################
 
 # NOTE: Do not use set -e with grep -c for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
@@ -619,8 +606,8 @@ if [[ ! $waitDF_all ]]; then
     waitDF_all=na
 fi
 
-# When no GW tasks are ready to start or are currently running, provide a heads-up.
-#    But only when there are tasks in queue should $readyDF_lookahead be evaluated.
+# When no GW tasks are ready to start or currently running, provide a heads-up,
+#    but only when there are tasks in queue should $readyDF_lookahead be evaluated.
 integer="[0-9]"
 if [[ $names ]] && [[ ! $readyDF_lookahead =~ $integer ]]; then
     echo "$(date "+%b %d %T") A non-GW task is ready to run."
@@ -923,8 +910,8 @@ elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
-    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
-    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
+    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use"   | tee -a $log_file
+    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%"   | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 fi
 ######################### TH.. TH.. THAT'S ALL FOLKS! ############################
