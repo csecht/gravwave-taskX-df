@@ -283,7 +283,7 @@ fi
 #   https://einsteinathome.org/content/cant-access-local-boinc-client-anymore-authorization-failure-155
 # Path to boinccmd is usually /usr/bin/boinccmd, but may differ in some distributions,
 #   so find path with 'which'.
-# Exit point if boinccmd not found.
+# Exit point: boinccmd not found.
 boinc_cmd=$(command -v boinccmd)
 if [[ ! $boinc_cmd ]]; then
     echo "Error: OS command [boinccmd] executable not found.
@@ -326,10 +326,9 @@ tasks="$(${boinc_cmd} --get_tasks)"
 names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
 
 # Task X changes only for task names with two search frequency values present: GW tasks.
-#   ..but that task X can also be used for FGRP tasks.
+#   ..but that task X can also be used for FGRP (LATeah) tasks.
 # In the main body, $minimize_X = yes sets task X to lowest valid configured X.
 minimize_X=no
-#validtask_num=0
 invaltask_num=0
 # shellcheck disable=SC2162
 # When no tasks in queue, $names is empty, so then don't increment $invaltask_num.
@@ -341,8 +340,8 @@ if [[ $names ]]; then
     done <<<"$names"
 fi
 if [[ $status_only == no ]] && ((invaltask_num > 0)); then
-    echo "Tasks other than $gravtask_tag and LATeah are in queue. Task multiplicities may be invalid." | tee -a $log_file
-    echo "    Task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
+    echo "Tasks other than $gravtask_tag and LATeah are in queue. Task X values may be invalid;" | tee -a $log_file
+    echo "    therefore, task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
     minimize_X=yes
     notice_tone2
 fi
@@ -399,7 +398,6 @@ num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
 suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 
 ############## BEGIN Auto-suspend condition; toggled in $config_file ##########
-
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
 # Monitor how many script cycles (minutes) each task has run, and suspend it if past the configured limit.
 # Need to be sure the file is there.
@@ -559,8 +557,8 @@ fi
 #$num_all_tasks task(s) total in queue." | tee -a $log_file
 
 # Calculate the delta frequency, DF, for every GW task in queue.
-# Delta frequencies (DF) of all GW tasks are later filtered for relevant tasks.
-# This regex will not match Gamma-ray pulsar search #5 task IDs.
+# Delta frequencies of all GW tasks, $allDFs, are later filtered for relevant tasks.
+# This regex should not match to non-GW task names.
 # shellcheck disable=SC2162
 while read name; do
     if [[ $name =~ $gravtask_tag ]]; then
@@ -575,14 +573,14 @@ while read name; do
     fi
 done <<<"$names"
 
-# Need to have relevant data from each task in one row. Lines in vars should be in register.
+# Need to have relevant data from each task in one row. Lines in input vars should be in register.
 findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo "$actstates"))
 
 # Get DFs of all running (scheduled) tasks.
 # Get DF of all waiting (preempted) tasks and the next waiting task to run.
 # Get DF of all n ready (downloaded & uninitialized) tasks, given n GPUs, and next ready task.
 #   Can look-ahead for more ready tasks with: if  (( cnt <= (($num_gpu*$curr_X)) ))
-#     instead of: if (( cnt <= num_gpu )).
+#     instead of: if ((cnt <= num_gpu)).
 # This all works because <boinc-client --get_tasks> sorts tasks by order of action precedent.
 # Waiting and ready DFs are converted to VRAM usage, $vpct_new, in the main body.
 # IF no tasks are Ready to start, then readyDF_hi is empty(unset),
@@ -674,7 +672,7 @@ gttpct_curr_hi=$(gttpct_hi)
 vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
-##################### Report task and GPU metrics on the configured time interval.  ###############
+################ Report time interval metrics  ################################
 # $report_int, set in  .cfg, is the number of minutes between reports.
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
@@ -715,8 +713,7 @@ fi
 if [[ $status_only == yes ]]; then
     exit
 fi
-
-############################ End reporting of timed interval metrics ##############################
+################ End reporting of timed interval metrics ######################
 
 # When a GPU is @ 1X concurrent tasks and a task has just begun running
 #   vram% may be below what is required to complete the task
@@ -915,8 +912,8 @@ elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
-    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use"   | tee -a $log_file
-    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%"   | tee -a $log_file
+    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
+    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 fi
 ######################### TH.. TH.. THAT'S ALL FOLKS! #########################
