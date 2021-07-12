@@ -19,9 +19,9 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.7.1'
+version='0.7.2'
 
-if ((time_arg > 0 && time_arg < 60)); then
+if (( time_arg > 0 && time_arg < 60 )); then
     time_arg=60
     echo "Interval time parameter cannot be less than 60 seconds."
     echo "   Values between 0 and 60 will be converted to 60."
@@ -140,7 +140,7 @@ do
         echo "————————————————————————————————————————" | tee -a $log_file
         cycle=0
     fi
-    if ((yikes >= 2 * 10**4)); then
+    if (( yikes >= 2 * 10**4 )); then
         days=$((time_arg * yikes / 60 / 24))
         echo "   **** YIKES! $script has been running for $yikes cycles, $days days. ****
         Restart $script to get rid of this annoying reminder." | tee -a $log_file
