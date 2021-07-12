@@ -42,7 +42,11 @@
 ########################## Set up variables and do some error checking ##########################
 #################################################################################################
 
-. ./taskXDF.cfg
+#. ./taskXDF.cfg
+config_file=$(basename -- $0).cfg
+# shellcheck disable=SC1090
+. ./$config_file
+
 
 ################################# Functions section #############################################
 # Need to know highest or lowest values among all active cards because boinc task multiples
@@ -202,7 +206,7 @@ if [[ $1 =~ --go ]]; then
     cycle_num=$2
 elif [[ $1 =~ --status ]]; then
     status_only=yes
-    # Need to over-ride configurations in taskXDF.cfg to avoid errors and unwanted actions.
+    # Need to over-ride configurations in .cfg to avoid errors and unwanted actions.
     auto_suspend=no
     interval_time=60
     ttime_max=60
@@ -220,7 +224,7 @@ elif [[ ! $1 ]] || [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then
     exit
 fi
 
-# The valid X list assumes there are UP TO five valid task multiples from  .cfg.
+# The valid X list assumes there are UP TO five valid task multiples from .cfg.
 # Need to trim trailing white space with xargs for when not all 5 Xs are defined.
 # The X list is used in main body to raise task multiples;
 #   reversed list used to lower task multiples.
@@ -242,9 +246,9 @@ if [[ "$valid_Xs" =~ [0.A-Za-z] ]]    ||
     [[ $report_int =~ ^[0]|[.A-Za-z] ]]  ||
     [[ $ttime_max =~ ^[0]|[.A-Za-z ]]; then
     notice_tone2
-    echo "Some values in .cfg file accept decimals, some accept only integers,
+    echo "Some values in $config_file file accept decimals, some accept only integers,
     but never just zero. Only path names accept letter characters.
-    Edit the .cfg file to fix possible value errors. Exiting...." | tee -a $log_file
+    Edit the $config_file file to fix possible value errors. Exiting...." | tee -a $log_file
     exit 1
 fi
 
@@ -275,9 +279,9 @@ if [[ $max_line ]] && ((max_concurrent < max_num_tasks)); then
     echo
     echo "HEADS UP! your app_config.xml <project_max_concurrent> setting of $max_concurrent
     is lower than the potential maximum number of concurrent tasks, $max_num_tasks,
-    as determined by your maximum X setting,$highest_X, in taskXDF.cfg
+    as determined by your maximum X setting,$highest_X, in $config_file
     and your number of crunching GPUs, $num_gpu.
-    You should raise the project_max or comment out the highest \$X value in taskXDF.cfg.
+    You should raise the project_max or comment out the highest \$X value in $config_file.
     Otherwise task X will not increase when the script reports it was increased."
 fi
 
@@ -390,7 +394,7 @@ num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks")  # Ready to report.
 suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 
 
-##############  BEGIN Auto-suspend condition; toggled in taskXDF.cfg #########################################
+##############  BEGIN Auto-suspend condition; toggled in $config_file #########################################
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
 # Monitor how many script cycles (minutes) each task has run, and suspend it if past the configured limit.
 # Need to be sure the file is there.
@@ -422,7 +426,7 @@ done <<<"$simple_gui_info"
 sleep 0.5
 
 # $interval_time is passed as seconds from taskXDF-timer when timer script first starts
-# $ttime_max is passed as minutes from taskXDF.cfg.
+# $ttime_max is passed as minutes from .cfg.
 interval_minute=$((interval_time / 60))
 max_runningtask_count=$(bc <<<"$ttime_max / $interval_minute")
 
@@ -486,7 +490,7 @@ if ((num_run > 0)); then
     fi
 elif ((num_run == 0)); then
     if ((num_all_tasks == 0)); then
-        echo "$(date "+%b %d %T") No tasks are available; check Boinc Manager." | tee -a $log_file
+        echo "$(date "+%b %d %T") No tasks are available; check BOINC Manager." | tee -a $log_file
         echo
         notice_tone3
         exit 0
@@ -510,12 +514,11 @@ elif ((num_run == 0)); then
     sleep 1
     # num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l) # Use this if set -e being used.
     num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-
     if ((num_run > 0)); then
         curr_X=$((num_run / num_gpu))
-        echo "$num_run tasks are running following task resumption or update."  | tee -a $log_file
+        echo "$num_run tasks are running following BOINC task resumption or update."  | tee -a $log_file
     elif ((num_run == 0)); then
-        echo "$(date "+%b %d %T") Still no tasks running. Check Boinc Manager." | tee -a $log_file
+        echo "$(date "+%b %d %T") Still no tasks running. Check BOINC Manager." | tee -a $log_file
         echo
         notice_tone3
         exit 0
@@ -761,7 +764,7 @@ if ((vpct_curr < vpct_min)); then
         gttpct_curr_hi=$(gttpct_hi)
         if ((vpct_curr < vpct_min)); then
             echo -n "$(date "+%b %d %T") VRAM% $vpct_curr remains below set limit." | tee -a $log_file
-            echo " Check Boinc Manager and settings in .cfg file." | tee -a $log_file
+            echo " Check BOINC Manager or the settings in the $config_file file." | tee -a $log_file
             notice_tone2
         fi
     fi
@@ -791,7 +794,7 @@ if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ] && ((curr_X == lowest_X)); 
         gttpct_curr_hi=$(gttpct_hi)
         if [ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]; then
             echo -n "$(date "+%b %d %T") GTT% of $gttpct_curr_hi remains" >>$log_file
-            echo " above limit. Check gpct_max setting in  .cfg. file" >>$log_file
+            echo " above limit. Check gpct_max setting in the $config_file file" >>$log_file
         fi
     fi
 
@@ -923,7 +926,7 @@ fi
 if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
     echo "A change to task X is warranted, but this script is running in a"
-    echo "  monitor-only mode, as set in taskXDF.cfg file, so task X will not be changed."
+    echo "  monitor-only mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
     # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"

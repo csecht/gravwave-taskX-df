@@ -98,10 +98,11 @@ else
     go=true
 fi
 
+report_t=$(bc <<<"scale=1; $time_arg * $report_int / 60")
 # Provide an initial information message when timer is started.
-echo "Currently running $script to execute $target on an interval of $time_arg seconds.
+echo "$script is executing $target every $time_arg seconds; $target reports every $report_t minutes.
 (can be stopped with CTRL+C)
-A report is issued every $report_int interval cycles, as set in the $target.cfg file." | tee -a $log_file
+The reporting interval is set in the $target.cfg file." | tee -a $log_file
 
 # monitor_only is set in .cfg file.
 if [[ $monitor_only == yes ]]; then
@@ -123,7 +124,6 @@ echo "————————————————│———————�
 # The actual number of status reports between reminders depends on the $report_int setting in the .cfg file.
 cycle=0
 yikes=0
-report_t=$(bc <<<"scale=1; $time_arg * $report_int / 60")
 while [[ $go == true ]]
 do
     /bin/bash ./${target} --go${time_arg} $cycle
