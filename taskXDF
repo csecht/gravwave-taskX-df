@@ -24,7 +24,7 @@
 #  After adding yourself to the boinc group, a system reboot is needed
 #   for the new permissions to take effect.
 
-# This script adjusts the app_config.xml file of the boinc-client
+# This script edits the app_config.xml file of the boinc-client
 #   in response to dynamic AMD GPU memory requirements during task computation.
 #   The scheme uses a conservative approach to change app_config, such that
 #     the strictest current limitations of any card control task multiplicity of all cards.
@@ -467,6 +467,9 @@ if ((num_run > 0)); then
     if ((curr_X == 0)); then
         curr_X=1
     fi
+    if ((num_run == num_all_tasks)); then
+        echo "$(date "+%b %d %T") NOTICE: BOINC client is about to run out of tasks."
+    fi
 elif ((num_run == 0)); then
     if ((num_all_tasks == 0)); then
         echo "$(date "+%b %d %T") No tasks are available; check BOINC Manager." | tee -a $log_file
@@ -609,16 +612,14 @@ fi
 # When no GW tasks are ready to start or currently running, provide a heads-up,
 #    but only when there are tasks in queue should $readyDF_lookahead be evaluated.
 integer="[0-9]"
-if [[ $names ]] && [[ ! $readyDF_lookahead =~ $integer ]]; then
+if [[ $readyDF_lookahead ]] && [[ ! $readyDF_lookahead =~ $integer ]]; then
     echo "$(date "+%b %d %T") A non-GW task is ready to run."
 fi
 
 if [[ $runDF_all =~ na ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running." | tee -a $log_file
-fi
-
-if [[ ! $runDF_all =~ $integer ]]; then
-    echo "$(date "+%b %d %T") NO GW TASKS ARE RUNNING (may be because of task suspension)."
+elif [[ ! $runDF_all =~ $integer ]]; then
+    echo "$(date "+%b %d %T") NO GW TASKS are running (or may have recently resumed)."
 fi
 
 # Set up associative array to get the VRAM GB requirement of a task from its DF.
@@ -649,6 +650,8 @@ elif ((size_log == 0)); then
     echo -n "----------------│--------│-------│------│--------│---│" >>$log_file
     echo "----------------------------------------" >>$log_file
 fi
+
+################################ END task and GPU data collection #################################
 
 ###################################################################################################
 #             BEGIN main body for reporting, evaluating run conditions, and setting task X
@@ -822,12 +825,12 @@ fi
 
 # Supplemental conditions for when not to increase task X.
 #   Some of these variables are set in .cfg.
-#   Check whether there is available VRAM to add another tasks.
+#   Check whether there is available VRAM to add another task.
 #   Check whether possibly running out of tasks.
-#   Check whether VRAM% is below expected minimum, maybe in between tasks.
+#   Check whether VRAM% is below expected minimum; may be transitioning tasks.
 #   Check whether any tasks are uploading.
-#   Check whether a running tasks is near or at completion (when vram% may be low).
-#   Check whether newly started tasks have progressed toward stable vram%.
+#   Check whether a running tasks is near or at completion (when VRAM% may be low).
+#   Check whether newly started tasks have progressed toward stable VRAM%.
 #   Check for excessive GTT% when VRAM% is within its acceptable range.
 incr_X="yes"
 if ((vpct_new >= vpct_max)) ||
@@ -883,7 +886,7 @@ elif [[ $minimize_X == yes ]]; then
     # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
 fi
 
-############################## Edit app_config.xml and issue a change report ####################
+########################### Edit app_config.xml and issue a task X change report ##################
 set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
