@@ -632,16 +632,14 @@ if [[ ! $waitDF_all ]]; then
     waitDF_all=na
 fi
 
-# When no GW tasks are ready to start or currently running, provide a heads-up,
-#    but only when there are tasks in queue should $readyDF_lookahead be evaluated.
-if [[ $readyDF_lookahead ]] && [[ ! $readyDF_lookahead =~ na ]]; then
+# When no GW tasks are ready to start or currently running, provide a heads-up.
+if [[ $readyDF_lookahead =~ na ]]; then
     echo "$(date "+%b %d %T") A non-GW task is ready to run."
 fi
 
-integer="[0-9]"
 if [[ $runDF_all =~ na ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running." | tee -a $log_file
-elif [[ ! $runDF_all =~ $integer ]]; then
+elif [[ ! $runDF_all =~ [0-9] ]]; then
     echo "$(date "+%b %d %T") NO GW TASKS are running (or may have recently resumed)."
 fi
 
