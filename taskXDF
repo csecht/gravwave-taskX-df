@@ -101,7 +101,11 @@ gttpct_hi() {
     for p in $amd_paths; do
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         gtt_used=$(cat ${card_path}mem_info_gtt_used)
-        gtt_tot=$(cat ${card_path}mem_info_gtt_total)
+        # gtt_tot=$(cat ${card_path}mem_info_gtt_total)
+        # AMDGPU 21.10 wrongly reads vram_total as the gtt_total, so substitute gtt_total for the
+        #   identical system total memory which can be obtained with the free command.
+        #   From free cmd, 'Mem:' starts 2nd line & tot sys mem is first value (2nd awk field) on that line.
+        gtt_tot=$(free -b | awk '/Mem/{print $2}')
         tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
         if [[ $(bc <<<"$tmp_gttpct_curr > $gttpct_curr_hi") -eq 1 ]]; then
             gttpct_curr_hi=$tmp_gttpct_curr
@@ -116,7 +120,7 @@ gttpct_hi() {
 #    for p in $amd_paths; do
 #        card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
 #        gtt_used=$(cat ${card_path}mem_info_gtt_used)
-#        gtt_tot=$(cat ${card_path}mem_info_gtt_total)
+#        gtt_tot="$(free -b | awk '/Mem/{print $2}')"
 #        tmp_gttpct_curr=$(bc <<<"scale=2; 100 * $gtt_used / $gtt_tot")
 #        if [[ $(bc <<<"$tmp_gttpct_curr < $gttpct_curr_lo") -eq 1 ]]; then
 #            gttpct_curr_lo=$tmp_gttpct_curr
@@ -482,8 +486,8 @@ fi
 # Need to resume tasks in case task suspension from previous cycle gets stuck for some reason.
 # Need to pause script following task resumption to get accurate memory use readings in main body.
 # Calculating X by num_run/num_gpu seems prone to errors from unaccounted BOINC or script conditions.
-# Base level sleep_t is set in  .cfg.
-sleep_factor=4
+# Base level sleep_t is set in  .cfg. Is used to add time for GPU to attain stable run parameters.
+sleep_factor=2
 if ((num_run > 0)); then
     curr_X=$((num_run / num_gpu))
     # Need to cover condition when only one task is running, but >1 GPU are available.
@@ -632,17 +636,6 @@ if [[ ! $waitDF_all ]]; then
     waitDF_all=na
 fi
 
-# When no GW tasks are ready to start or currently running, provide a heads-up.
-if [[ $readyDF_lookahead =~ na ]]; then
-    echo "$(date "+%b %d %T") A non-GW task is ready to run."
-fi
-
-if [[ $runDF_all =~ na ]]; then
-    echo "$(date "+%b %d %T") Non-GW task(s) running." | tee -a $log_file
-elif [[ ! $runDF_all =~ [0-9] ]]; then
-    echo "$(date "+%b %d %T") NO GW TASKS are running (or may have recently resumed)."
-fi
-
 ################################ END task and GPU data collection #################################
 
 ###################################################################################################
@@ -671,7 +664,6 @@ vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
 ################ Report time interval metrics  ################################
-# $report_int, set in  .cfg, is the number of minutes between reports.
 # Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
 #report_int=1  ## TESTING
@@ -691,15 +683,16 @@ pad=" %5d │ %5d │ %4.2f │ %6.2f │"
 # An initial report is issued on startup and status_only == yes condition.
 # Need initial status report, so check if and how long timer script has been running, in seconds,
 #   and print initial report if less than a few seconds; that is, it just started.
-# OTHERWISE, report interval is based on $report_int value (set in .cfg).
-#   Current script cycle count, $cycle_num, is passed from taskXDF-timer as an argument.
+# OTHERWISE, report interval is based on $report_int value set in .cfg.
+# Current script cycle count, $cycle_num, is passed from -timer script as an argument.
+# Report interval, $report_int, is set in  .cfg and is the number of minutes between reports.
 timer_pid=$(pgrep taskXDF-timer)
-
 if [[ $timer_pid ]]; then
     # shellcheck disable=SC2009
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
-if ((timer_uptime < 10)) || [[ $((cycle_num % report_int)) -eq 0 ]]; then
+interval_mod=$((cycle_num % report_int))
+if ((timer_uptime < 10)) || ((interval_mod == 0)); then
     echo -n "$(date "+%b %d %T") │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
@@ -707,9 +700,37 @@ if ((timer_uptime < 10)) || [[ $((cycle_num % report_int)) -eq 0 ]]; then
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
 
-# Need to stop script execution here if --status argument was evoked to execute script.
+# Need to notify user when non-GW tasks are running or when there are no GW tasks running,
+#   but do not need to repeat the notice in the Terminal every interval.
+#   So keep track whether GW notifications are persistent by logging them in the log file;
+#     any GW task notice from the prior interval should be last line in the log file.
+#     Can then overwrite in the Terminal any prior notification line with the most recent notice.
+nonGW_flag=$(tail -n1 $log_file)
+# Use ansi escape codes to move cursor to beginning of previous line & delete entire line.
+del_line_above="\\x1b[1F\\x1b[K"
+if [[ ! $runDF_all =~ [0-9] && $status_only == yes ]]; then
+    echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)."
+elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
+    if [[ ! $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
+        printf "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed).\n" | tee -a $log_file
+    elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
+        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)..\n"
+        echo "$$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)." >>$log_file
+    fi
+elif [[ $runDF_all =~ na && $status_only == yes ]]; then
+    echo "$(date "+%b %d %T") Non-GW task(s) running."
+elif [[ $runDF_all =~ na && $status_only == no ]]; then
+    if [[ ! $nonGW_flag =~ Non-GW ]]; then
+        printf "$(date "+%b %d %T") Non-GW task(s) running.\n" | tee -a $log_file
+    elif [[ $nonGW_flag =~ Non-GW ]]; then
+        printf "$del_line_above$(date "+%b %d %T") Non-GW task(s) running.\n"
+        echo "$(date "+%b %d %T") Non-GW task(s) running." >>$log_file
+    fi
+fi
+
+# Need to stop script execution here if --status argument was invoked to execute script.
 if [[ $status_only == yes ]]; then
-    exit
+    exit 0
 fi
 ################ End reporting of timed interval metrics ######################
 

@@ -19,7 +19,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.7.4'
+version='0.8'
 
 if (( time_arg > 0 && time_arg < 60 )); then
     time_arg=60
@@ -72,13 +72,14 @@ elif [[ $# != 1 ]] ||
 
     A time interval of 0 (zero) provides a one-off status report from $target,
         otherwise a non-zero interval time provides interval reports and taskX adjustments.
+    A time interval of 60 will provide good script responsiveness.
 
     To monitor task status on a regular interval without changing task X, edit the
         taskXDF.cfg file to monitor_only=yes (default is 'no').
 
     Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
-        Einstein@Home O3AS gravitational wave GPU tasks.
-    Script WILL NOT WORK properly if CPU tasks are queued.
+        Einstein@Home gravitational wave GPU tasks.
+    Script WILL NOT WORK properly if CPU tasks are queued or running.
 
     A log file of Terminal output is created in the current folder.
 
@@ -98,6 +99,7 @@ else
     go=true
 fi
 
+# $report_int (number of interval cycles between reports) is set in the .cfg file.
 report_t=$(bc <<<"scale=1; $time_arg * $report_int / 60")
 # Provide an initial information message when timer is started.
 echo "$script is executing $target every $time_arg seconds; $target reports every $report_t minutes.
@@ -120,22 +122,24 @@ echo "————————————————│———————�
 # The --go argument is used as a tag so that time interval value can be passed to $target for time calculations.
 # The cycle arg passes the cycle count to $target so that $report_int can be used.
 # A reminder is provided for how to stop once every 120 interval cycles of the main script.
-#   The reminder cycle interval condition, if [[ $cycle == 120 ]], can be set to the user's liking.
-# The actual number of status reports between reminders depends on the $report_int setting in the .cfg file.
+#   Display a table header and script run conditions reminder every 24 reports.
 cycle=0
 yikes=0
+reminder_count=$((report_int * 24))
 while [[ $go == true ]]
 do
     /bin/bash ./${target} --go${time_arg} $cycle
     sleep $time_arg
     ((cycle++))
     ((yikes++))
-    if  [[ $cycle == 120 ]] ; then
+    if  ((cycle == reminder_count)); then
         echo ">> $script is executing $target every $time_arg seconds; $target reports every $report_t minutes. <<
-        (can be stopped with CTRL+C)" | tee -a $log_file
+    (can be stopped with CTRL+C)" | tee -a $log_file
         echo
         echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
-        printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n" | tee -a $log_file
+        printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
+        # ..but need to remove font color escape codes from log text.
+        echo "DFs: [running] [waiting] [ready]" >>$log_file
         echo -n "————————————————│————————│———————│——————│————————│———│" | tee -a $log_file
         echo "————————————————————————————————————————" | tee -a $log_file
         cycle=0
