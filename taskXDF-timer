@@ -132,7 +132,7 @@ do
     sleep $time_arg
     ((cycle++))
     ((yikes++))
-    if  ((cycle == reminder_count)); then
+    if ((cycle == reminder_count)); then
         echo ">> $script is executing $target every $time_arg seconds; $target reports every $report_t minutes. <<
     (can be stopped with CTRL+C)" | tee -a $log_file
         echo

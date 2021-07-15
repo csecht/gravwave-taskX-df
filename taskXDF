@@ -692,8 +692,9 @@ if [[ $timer_pid ]]; then
     timer_uptime="$(ps --pid $timer_pid -o etimes | grep -o '[0-9]*')"
 fi
 interval_mod=$((cycle_num % report_int))
+# Move terminal cursor to beginning of line, in case user typed in the open reporting Terminal.
 if ((timer_uptime < 10)) || ((interval_mod == 0)); then
-    echo -n "$(date "+%b %d %T") │ " | tee -a $log_file
+    echo -ne "\r$(date "+%b %d %T") │ " | tee -a $log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
     # ..but need to remove font color escape codes from file text.
@@ -715,7 +716,8 @@ elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
         printf "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed).\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
         printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)..\n"
-        echo "$$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)." >>$log_file
+        # Do not include escape codes in log text.
+        echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)." >>$log_file
     fi
 elif [[ $runDF_all =~ na && $status_only == yes ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running."
@@ -724,6 +726,7 @@ elif [[ $runDF_all =~ na && $status_only == no ]]; then
         printf "$(date "+%b %d %T") Non-GW task(s) running.\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ Non-GW ]]; then
         printf "$del_line_above$(date "+%b %d %T") Non-GW task(s) running.\n"
+        # Do not include escape codes in log text.
         echo "$(date "+%b %d %T") Non-GW task(s) running." >>$log_file
     fi
 fi
@@ -935,4 +938,20 @@ elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 fi
+# TODO: Edit gpu_usage ONLY for current GW application, not all gpu_usages; use perl or sed?
+# see: https://unix.stackexchange.com/questions/26284/how-can-i-use-sed-to-replace-a-multi-line-string
+# https://unix.stackexchange.com/questions/181180/replace-multiline-string-in-files/181215#181215
+# $currentgwapp is set in .cfg; it is the name of the gravitational wave GPU app used in your app_config.xml file
+#gwapp_current=einstein_O3AS
+#if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
+#    echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
+#    echo "A change to task X is warranted, but this script is running in a"
+#    echo "  monitor-only mode, as set in the $config_file file, so task X will not be changed."
+#elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
+##    sed -E -i.bak "s/(<name>$gwapp_current</name>\n.+<gpu_usage>).+(</gpu_usage)>/\1$gpu_use\2/" "$app_path" # NOGO!! \n not recognized.
+#    perl -i -p0e "s/(<name>$gwapp_current</name>\n.+<gpu_usage>).+(</gpu_usage)>/\1$gpu_use\2/s" input.txt
+#    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
+#    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
+#    ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
+#fi
 ######################### TH.. TH.. THAT'S ALL FOLKS! #########################
