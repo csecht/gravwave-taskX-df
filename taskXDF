@@ -59,6 +59,7 @@ vgbtotal() {
         card_path=$(grep -o '/sys/class/drm/card./device/' <<<$p)
         vm_tot=$(cat ${card_path}mem_info_vram_total)
         temp_tot=$(bc <<<"scale=2; $vm_tot / 1024^3")
+        # bc returns 0 or 1 (false | true) for arithmetic comparisons.
         if [[ $(bc <<<"$temp_tot < $vGB_total") -eq 1 ]]; then
             vGB_total=$temp_tot
         fi
@@ -728,14 +729,14 @@ nonGW_flag=$(tail -n1 $log_file)
 # Use ansi escape codes to move cursor to beginning of previous line & delete entire line.
 del_line_above="\\x1b[1F\\x1b[K"
 if [[ ! $runDF_all =~ [0-9] && $status_only == yes ]]; then
-    echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck)."
+    echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)."
 elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
     if [[ ! $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck).\n" | tee -a $log_file
+        printf "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed).\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck)..\n"
+        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)..\n"
         # Do not include escape codes in log text.
-        echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck)." >>$log_file
+        echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)." >>$log_file
     fi
 elif [[ $runDF_all =~ na && $status_only == yes ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running."
@@ -757,7 +758,7 @@ fi
 
 # When a GPU is @ 1X concurrent tasks and a task has just begun running
 #   vram% may be below what is required to complete the task
-#   (or if otherwise unexpected low vram%),
+#   (or may be an otherwise unexpected low vram%),
 #   so need to pause the script, then check whether vram% reaches set minimum limit.
 # This should help provide more realistic VRAM% values for estimating $vpct_new.
 # $sleep_t is set in  .cfg.
