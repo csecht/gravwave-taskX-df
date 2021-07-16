@@ -64,9 +64,9 @@ elif [[ $# != 1 ]] ||
     Values less than 60 will be converted to 60. Decimal seconds are invalid.
 
     Optional arguments: --header,  --status, or --help
-        --header provides explanation of types of interval data reported; no interval time needed.
-        --status provides current boinc and GPU run metrics; does not change task X.
-        --help brings up this message.
+        --header, provides explanation of types of interval data reported; no interval time needed.
+        --status, provides current BOINC and GPU metrics; does not change task X or suspend tasks.
+        --help, brings up this message.
 
     This timer script provides continuous timed runs of the $target bash script.
 
@@ -78,8 +78,9 @@ elif [[ $# != 1 ]] ||
         taskXDF.cfg file to monitor_only=yes (default is 'no').
 
     Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
-        Einstein@Home gravitational wave GPU tasks.
-    Script WILL NOT WORK properly if CPU tasks are queued or running.
+        Einstein@Home gravitational wave and gamma-ray GPU tasks.
+    Task X is changed only for the GW app.
+    $target WILL NOT WORK properly if CPU tasks are queued or running.
 
     A log file of Terminal output is created in the current folder.
 
