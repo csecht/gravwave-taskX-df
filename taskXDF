@@ -343,7 +343,7 @@ if [[ $names ]]; then
         fi
     done <<<"$names"
 fi
-if [[ $status_only == no ]] && ((invaltask_num > 0)); then
+if ((invaltask_num > 0)) && [[ $monitor_only == no || $status_only == no ]]; then
     echo "Tasks other than $gravtask_tag and LATeah are in queue. Task X values may be invalid;" | tee -a $log_file
     echo "    therefore, task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
     minimize_X=yes
@@ -395,6 +395,7 @@ fi
 # NOTE: Do not use set -e with grep -c for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
 #   If set -e is used, pipe grep to wc:  | wc -l
+#    E.g., num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
 num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
 num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
 num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
@@ -504,33 +505,49 @@ elif ((num_run == 0)); then
         notice_tone3
         exit 0
     fi
-
-    # NOTE: This will run also when user has suspended all tasks or auto-suspend is active.
-    ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-    echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
-    echo "Script pausing $((sleep_factor * sleep_t)) sec." >>$log_file
-    sleep $((sleep_factor * sleep_t))
-
+    recheck=no
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
         echo "Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
+        # TODO: Consider adding option for audible notifications on|off.
         notice_tone3
+        # Sleep is to allow boinc to get an update from the server. Note sleep length may cause odd reporting behavior.
         sleep 90
+        recheck=yes
     fi
 
+    # $num_run == 0 happens transiently and rarely for unknown reasons, triggering unnecessary project resumption command.
+    #   Need to avoid this condition by pausing and confirming number of EXECUTING tasks before a resumption.
+    $sleep_t
     tasks="$(${boinc_cmd} --get_tasks)"
     sleep 1
-    # num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l) # Use this if set -e being used.
     num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-    if ((num_run > 0)); then
-        curr_X=$((num_run / num_gpu))
-        echo "$num_run tasks are running following BOINC task resumption or update." | tee -a $log_file
-    elif ((num_run == 0)); then
-        echo "$(date "+%b %d %T") Still no tasks running. Check BOINC Manager." | tee -a $log_file
-        echo
-        notice_tone3
-        exit 0
+
+    # NOTE: This will also run also when user has suspended all tasks or auto-suspend is active.
+    if ((num_run == 0)); then
+        ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
+        echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
+        echo "                    (Are any tasks suspended?)"
+        echo "Script pausing $((sleep_factor * sleep_t)) sec. following attempted task resumption." >>$log_file
+        sleep $((sleep_factor * sleep_t))
+        recheck=yes
+    fi
+
+    if [[ $recheck == yes ]]; then
+        tasks="$(${boinc_cmd} --get_tasks)"
+        sleep 1
+        num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
+        if ((num_run > 0)); then
+            curr_X=$((num_run / num_gpu))
+            echo "$num_run tasks are running following BOINC task resumption or update." | tee -a $log_file
+        elif ((num_run == 0)); then
+            echo "$(date "+%b %d %T") Still no tasks running. Check BOINC Manager." | tee -a $log_file
+            echo
+            notice_tone3
+            # No need to continue with evaluations, so quit here.
+            exit 0
+        fi
     fi
 fi
 
@@ -540,20 +557,21 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)) && [[ $monitor_only == no ]]; then
-    minimize_X=yes
-    echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
-fi
+if [[ $monitor_only == no || $status_only == no ]]; then
+    if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
+        minimize_X=yes
+        echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
+    fi
 
-# Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
-#   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
-if ((num_run > 0)) && ((suspended_task > 0)); then
-    echo
-    echo "$(date "+%b %d %T") *** You have suspended a task; now minimizing task X... ***
-    Automatic task X changes will resume once no tasks are suspended or waiting." | tee -a "$log_file"
-    minimize_X=yes
+    # Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
+    #   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
+    if ((num_run > 0 && suspended_task > 0)); then
+        echo
+        echo "$(date "+%b %d %T") *** You have suspended a task; now minimizing task X... ***
+        Automatic task X changes will resume once no tasks are suspended or waiting." | tee -a "$log_file"
+        minimize_X=yes
+    fi
 fi
-
 #echo "$num_gpu AMD card(s) recognized.
 #Current task multiple: ${curr_X}X
 #$num_run task(s) currently running.
@@ -710,14 +728,14 @@ nonGW_flag=$(tail -n1 $log_file)
 # Use ansi escape codes to move cursor to beginning of previous line & delete entire line.
 del_line_above="\\x1b[1F\\x1b[K"
 if [[ ! $runDF_all =~ [0-9] && $status_only == yes ]]; then
-    echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)."
+    echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck)."
 elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
     if [[ ! $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed).\n" | tee -a $log_file
+        printf "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck).\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)..\n"
+        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck)..\n"
         # Do not include escape codes in log text.
-        echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently resumed)." >>$log_file
+        echo "$(date "+%b %d %T") NO GW TASKS are running (or tasks have recently recheck)." >>$log_file
     fi
 elif [[ $runDF_all =~ na && $status_only == yes ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running."
