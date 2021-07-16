@@ -930,8 +930,8 @@ fi
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
 if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
-    echo "A change to task X is warranted, but this script is running in a"
-    echo "  monitor-only mode, as set in the $config_file file, so task X will not be changed."
+    echo "A change to task X is warranted, but this script is running in"
+    echo "  monitor mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # This sed regex matches all gpu_usage values in app_config file.
 #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
