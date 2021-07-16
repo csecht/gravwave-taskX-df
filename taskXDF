@@ -354,6 +354,7 @@ fi
 # Parse relevant lines from all tasks; used for eval of waiting, lookahead, or incrementing.
 # Prepend newline to the 'states' vars so later paste retains register with $allDFs.
 # Only running, waiting, and suspended tasks will have a 'fraction done' tag.
+#states=""$'\n'"$(echo "$tasks" | grep '   state' | awk '{sub("   state: ","",$0); print}')"
 states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
 schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
 actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
@@ -549,6 +550,11 @@ elif ((num_run == 0)); then
             # No need to continue with evaluations, so quit here.
             exit 0
         fi
+        # Need to re-populate task state data for accurate $findDFs, below.
+        states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
+        schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
+        actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
+        fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
     fi
 fi
 
