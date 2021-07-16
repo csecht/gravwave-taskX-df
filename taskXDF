@@ -924,34 +924,19 @@ if [[ ! $gpu_use ]]; then
     gpu_use=1
 fi
 
-# Stream editor sed will change ALL <gpu_usage> values in app_config.xml.
+# Perl regex will change <gpu_usage> values in app_config.xml only for the current GW app,
+#    $gravapp, as set in .cfg
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
 if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
     echo "A change to task X is warranted, but this script is running in a"
     echo "  monitor-only mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
-    # sudo sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
-    # sed -E -i.bak "s/gpu_usage>[0-9]?\.?[0-9]+/gpu_usage>$gpu_use/" "$app_path"
-    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
+    # this sed will change all gpu_usage values in file.
+#    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
+    perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>)\d?\.?\d+</\${1}${gpu_use}</s" "$app_file"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
 fi
-# TODO: Edit gpu_usage ONLY for current GW application, not all gpu_usages; use perl or sed?
-# see: https://unix.stackexchange.com/questions/26284/how-can-i-use-sed-to-replace-a-multi-line-string
-# https://unix.stackexchange.com/questions/181180/replace-multiline-string-in-files/181215#181215
-# $currentgwapp is set in .cfg; it is the name of the gravitational wave GPU app used in your app_config.xml file
-#gwapp_current=einstein_O3AS
-#if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
-#    echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
-#    echo "A change to task X is warranted, but this script is running in a"
-#    echo "  monitor-only mode, as set in the $config_file file, so task X will not be changed."
-#elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
-##    sed -E -i.bak "s/(<name>$gwapp_current</name>\n.+<gpu_usage>).+(</gpu_usage)>/\1$gpu_use\2/" "$app_path" # NOGO!! \n not recognized.
-#    perl -i -p0e "s/(<name>$gwapp_current</name>\n.+<gpu_usage>).+(</gpu_usage)>/\1$gpu_use\2/s" input.txt
-#    echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
-#    echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
-#    ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
-#fi
 ######################### TH.. TH.. THAT'S ALL FOLKS! #########################
