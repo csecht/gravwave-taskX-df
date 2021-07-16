@@ -926,17 +926,20 @@ fi
 
 # Perl regex will change <gpu_usage> values in app_config.xml only for the current GW app,
 #    $gravapp, as set in .cfg
+# User must have write privileges to the app_config.xml file.
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
 if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "Current VRAM%: $vpct_curr, GTT%: $gttpct_curr_hi, VRAM%+Ready-to-start%:~${vpct_new}%"
     echo "A change to task X is warranted, but this script is running in a"
     echo "  monitor-only mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
-    # this sed will change all gpu_usage values in file.
+    # This sed regex matches all gpu_usage values in app_config file.
 #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
-    perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>)\d?\.?\d+</\${1}${gpu_use}</s" "$app_file"
+    # This perl regex matches the next gpu_usage value following the GW GPU app <name> tag.
+    # Note that '$' in back reference variable must be escaped.
+    perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>).+</\${1}${gpu_use}</s" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
-    ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout "retval 0"
+    ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout is "retval 0"
 fi
 ######################### TH.. TH.. THAT'S ALL FOLKS! #########################
