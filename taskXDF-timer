@@ -19,7 +19,7 @@ touch "$log_file"
 
 target=taskXDF
 script="$(basename -- $0)"
-version='0.8.5'
+version='0.8.6'
 
 if (( time_arg > 0 && time_arg < 60 )); then
     time_arg=60
@@ -96,7 +96,7 @@ elif [[ $time_arg =~ [^0-9] ]]; then
     exit 0
 
 else
-# Initiate the infinite while loop for interval timing.
+    # Flag to initiate the infinite while loop for interval timing.
     go=true
 fi
 
@@ -114,19 +114,23 @@ if [[ $monitor_only == yes ]]; then
 elif [[ $monitor_only == no ]]; then
     echo "Running..."
 fi
-echo
-echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ "
+
+echo | tee -a $log_file
+echo "Starting new instance of $script >>>>>>" >>$log_file
+echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
 printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
-echo "————————————————│————————│———————│——————│————————│———│————————————————————————————————————————"
+# Remove escape codes for log text.
+echo "DFs: [running] [waiting] [ready]" >>$log_file
+echo "————————————————│————————│———————│——————│————————│———│————————————————————————————————————————" | tee -a $log_file
 
 # Run continuously until manually stopped. Runs the taskXDF (target) bash script each cycle.
 # The --go argument is used as a tag so that time interval value can be passed to $target for time calculations.
 # The cycle arg passes the cycle count to $target so that $report_int can be used.
-# A reminder is provided for how to stop once every 120 interval cycles of the main script.
-#   Display a table header and script run conditions reminder every 24 reports.
+# A reminder is provided every x cycles for how to stop the main script
+#   along with a table header and current script run conditions (from main script).
 cycle=0
 yikes=0
-reminder_count=$((report_int * 24))
+reminder_count=$((report_int * 20))
 while [[ $go == true ]]
 do
     /bin/bash ./${target} --go${time_arg} $cycle
