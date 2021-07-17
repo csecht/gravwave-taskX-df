@@ -521,7 +521,7 @@ elif ((num_run == 0)); then
 
     # $num_run == 0 happens transiently and rarely for unknown reasons, triggering unnecessary project resumption command.
     #   Need to avoid this condition by pausing and confirming number of EXECUTING tasks before a resumption.
-    $sleep_t
+    sleep $sleep_t
     tasks="$(${boinc_cmd} --get_tasks)"
     sleep 1
     num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
@@ -530,7 +530,7 @@ elif ((num_run == 0)); then
     if ((num_run == 0)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
         echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
-        echo "                    (Are any tasks suspended?)"
+        echo "                 (Are any tasks suspended?)"
         echo "Script pausing $((sleep_factor * sleep_t)) sec. following attempted task resumption." >>$log_file
         sleep $((sleep_factor * sleep_t))
         recheck=yes
