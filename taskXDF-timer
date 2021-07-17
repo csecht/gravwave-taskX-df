@@ -100,6 +100,8 @@ else
     go=true
 fi
 
+printf "\nStarting new instance of $script >>>>>>\n" >>$log_file
+
 # $report_int (number of interval cycles between reports) is set in the .cfg file.
 report_t=$(bc <<<"scale=1; $time_arg * $report_int / 60")
 # Provide an initial information message when timer is started.
@@ -109,14 +111,13 @@ The reporting interval is set in the $target.cfg file." | tee -a $log_file
 
 # monitor_only is set in .cfg file.
 if [[ $monitor_only == yes ]]; then
-    echo "Running in monitor mode, as set in $target.cfg. Task X will not be changed,
+    echo "Running in monitor only mode, as set in $target.cfg. Task X will not be changed,
     but auto-suspend of long-running tasks is active if set in $target.cfg." | tee -a $log_file
 elif [[ $monitor_only == no ]]; then
     echo "Running..."
 fi
 
 echo | tee -a $log_file
-echo "Starting new instance of $script >>>>>>" >>$log_file
 echo -n "date   time     │ queued │ VRAM% │ GTT% │ taskGB │ X │ " | tee -a $log_file
 printf "DFs: ${blue}[running]${nc} ${orng}[waiting]${nc} ${brn}[ready]${nc}\n"
 # Remove escape codes for log text.
