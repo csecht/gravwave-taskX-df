@@ -719,10 +719,12 @@ fi
 interval_mod=$((cycle_num % report_int))
 # Move terminal cursor to beginning of line, in case user typed in the open reporting Terminal.
 if ((timer_uptime < 10)) || ((interval_mod == 0)); then
-    echo -ne "\r$(date "+%b %d %T") │ " | tee -a $log_file
+    printf "\\x1b[1G$(date "+%b %d %T") │ "
+    # ..need to remove cursor control escape codes from file text.
+    echo -ne "$(date "+%b %d %T") │ " >>$log_file
     printf "${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" | tee -a $log_file
     printf " ${curr_X} │ ${blue}[${runDF_all}]$nc ${orng}[${waitDF_all}]${nc} ${brn}[${readyDF_lookahead}]${nc}\n"
-    # ..but need to remove font color escape codes from file text.
+    # ..need to remove font color escape codes from file text.
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
 
