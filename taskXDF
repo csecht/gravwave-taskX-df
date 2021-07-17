@@ -394,6 +394,14 @@ if [[ ! $names ]]; then
     num_all_tasks=0
 fi
 
+# Need to stop script if have run out of tasks.
+if ((num_all_tasks == 0)); then
+    echo "$(date "+%b %d %T") No tasks are available; check BOINC Manager." | tee -a $log_file
+    echo
+    notice_tone3
+    exit 0
+fi
+
 # NOTE: Do not use set -e with grep -c for counting b/c when nothing is found,
 #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
 #   If set -e is used, pipe grep to wc:  | wc -l
@@ -402,7 +410,9 @@ num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
 num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
 num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
 num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
-suspended_task=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
+suspended_by_user=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
+
+# TODO: redefine suspended task as =~ >0  scheduler state: scheduled && active_task_state: UNINITIALIZED
 
 ############## BEGIN Auto-suspend condition; toggled in $config_file ##########
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
@@ -491,6 +501,7 @@ fi
 # Calculating X by num_run/num_gpu seems prone to errors from unaccounted BOINC or script conditions.
 # Base level sleep_t is set in  .cfg. Is used to add time for GPU to attain stable run parameters.
 sleep_factor=2
+recheck=no
 if ((num_run > 0)); then
     curr_X=$((num_run / num_gpu))
     # Need to cover condition when only one task is running, but >1 GPU are available.
@@ -501,21 +512,14 @@ if ((num_run > 0)); then
         echo "$(date "+%b %d %T") NOTICE: BOINC client is about to run out of tasks."
     fi
 elif ((num_run == 0)); then
-    if ((num_all_tasks == 0)); then
-        echo "$(date "+%b %d %T") No tasks are available; check BOINC Manager." | tee -a $log_file
-        echo
-        notice_tone3
-        exit 0
-    fi
-    recheck=no
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
         echo "Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
         # TODO: Consider adding option for audible notifications on|off.
         notice_tone3
-        # Sleep is to allow boinc to get an update from the server. Note sleep length may cause odd reporting behavior.
-        sleep 90
+        # Sleep is to allow boinc to get an update from the server. Extended sleep length may cause odd reporting behavior.
+        sleep 70
         recheck=yes
     fi
 
@@ -525,21 +529,36 @@ elif ((num_run == 0)); then
     tasks="$(${boinc_cmd} --get_tasks)"
     sleep 1
     num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
+    recheck=yes
 
-    # NOTE: This will also run also when user has suspended all tasks or auto-suspend is active.
+#    # NOTE: This will also run also when user has suspended all tasks or auto-suspend is active.
+#    # Now proceed with actions for confirmed no tasks running .
     if ((num_run == 0)); then
-        ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-        echo "$(date "+%b %d %T") No tasks are running; trying to resume... " | tee -a $log_file
-        echo "                 (Are any tasks suspended?)"
-        echo "Script pausing $((sleep_factor * sleep_t)) sec. following attempted task resumption." >>$log_file
-        sleep $((sleep_factor * sleep_t))
-        recheck=yes
+#        ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
+        echo "$(date "+%b %d %T") No tasks are running. Check Boinc Manager." | tee -a $log_file
+        if ((suspended_by_user > 0)); then
+            echo "    $suspended_by_user tasks have been suspended by user. Consider resuming them..."
+        fi
+#        echo "Script pausing $((sleep_factor * sleep_t)) sec. following attempted task resumption." >>$log_file
+#        sleep $((sleep_factor * sleep_t))
+#        recheck=yes
     fi
 
     if [[ $recheck == yes ]]; then
         tasks="$(${boinc_cmd} --get_tasks)"
         sleep 1
+        # Need to re-populate task state data for accurate $findDFs, below.
+        names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
+        states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
+        schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
+        actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
+        fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
         num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
+        num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
+        num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
+        num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
+        suspended_by_user=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
+
         if ((num_run > 0)); then
             curr_X=$((num_run / num_gpu))
             echo "$num_run tasks are running following BOINC task resumption or update." | tee -a $log_file
@@ -550,11 +569,6 @@ elif ((num_run == 0)); then
             # No need to continue with evaluations, so quit here.
             exit 0
         fi
-        # Need to re-populate task state data for accurate $findDFs, below.
-        states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
-        schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
-        actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
-        fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
     fi
 fi
 
@@ -564,21 +578,25 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-if [[ $monitor_only == no && $status_only == no ]]; then
-    if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
-        minimize_X=yes
-        echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
-    fi
 
-    # Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
-    #   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
-    if ((num_run > 0 && suspended_task > 0)); then
-        echo
-        echo "$(date "+%b %d %T") *** You have suspended a task; now minimizing task X... ***
-        Automatic task X changes will resume once no tasks are suspended or waiting." | tee -a "$log_file"
+if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)) && [[ $monitor_only == no && $status_only == no ]]; then
+    echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
+    minimize_X=yes
+fi
+
+# Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
+#   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
+if ((num_run > 0 && suspended_by_user > 0)); then
+    echo
+    echo "$(date "+%b %d %T") *** You have $suspended_by_user suspended task(s). ***
+               BOINC will not upload new tasks while tasks are suspended." | tee -a "$log_file"
+    if [[ $monitor_only == no && $status_only == no ]]; then
+        echo "               To play it safe, task X will be set to lowest configured level...
+               Automatic task X increases will continue when no tasks are suspended or waiting." | tee -a "$log_file"
         minimize_X=yes
     fi
 fi
+
 #echo "$num_gpu AMD card(s) recognized.
 #Current task multiple: ${curr_X}X
 #$num_run task(s) currently running.
@@ -873,6 +891,7 @@ elif ((num_wait == 0)) &&
 elif [[ $(bc <<<"$readyDF_hi == 0") -eq 1 ]]; then # i.e. readyDF_hi=0 is True; no tasks Ready to start.
     vpct_new=100
 fi
+
 #vpct_new=$((vpct_new * 2))                  ## TESTING
 #vpct_curr=$((vpct_curr * 3))                ## TESTING
 #echo "VPCT predicted: $vpct_new, VPCT limit: $vpct_max" >>$log_file
@@ -958,8 +977,6 @@ if [[ ! $gpu_use ]]; then
     gpu_use=1
 fi
 
-# Perl regex will change <gpu_usage> values in app_config.xml only for the current GW app,
-#    $gravapp, as set in .cfg
 # User must have write privileges to the app_config.xml file.
 # app_config.xml edits are read into BOINC client by boinccmd --read_cc_config.
 if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
@@ -968,11 +985,9 @@ if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "  monitor mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # This sed regex matches all gpu_usage values in app_config file.
-    #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
-    # This perl regex matches the next gpu_usage value following the GW GPU app <name> tag.
-    # Note that '$' in back reference variable must be escaped.
-    perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>).+</\${1}${gpu_use}</s" "$app_path"
+    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
+    # TODO: FIX ${vpct_new}; is inaccurate when task(s) suspended, value is too high.
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout is "retval 0"
 fi
