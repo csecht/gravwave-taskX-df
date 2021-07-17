@@ -728,6 +728,13 @@ if ((timer_uptime < 10)) || ((interval_mod == 0)); then
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
 
+# Log data every timed interval (time set as a -timer argument) to the .log file.
+# $log_all toggle is set in the .cfg file; 'yes' is the default.
+if [[ $log_all == yes ]]; then
+    printf "$(date "+%b %d %T") │ ${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" >>$log_file
+    echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead] <<log_all=yes in $config_file" >>$log_file
+fi
+
 # Need to notify user when non-GW tasks are running or when there are no GW tasks running,
 #   but do not need to repeat the notice in the Terminal every interval.
 #   So keep track whether GW notifications are persistent by logging them in the log file;
@@ -961,7 +968,7 @@ if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "  monitor mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # This sed regex matches all gpu_usage values in app_config file.
-#    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
+    #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
     # This perl regex matches the next gpu_usage value following the GW GPU app <name> tag.
     # Note that '$' in back reference variable must be escaped.
     perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>).+</\${1}${gpu_use}</s" "$app_path"
