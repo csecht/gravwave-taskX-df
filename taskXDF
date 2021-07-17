@@ -968,10 +968,10 @@ if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
     echo "  monitor mode, as set in the $config_file file, so task X will not be changed."
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # This sed regex matches all gpu_usage values in app_config file.
-    #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
-    # This perl regex matches the next gpu_usage value following the GW GPU app <name> tag.
+    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
+    # This perl regex matches the next gpu_usage value following the GW GPU app <name> tag. DO NOT USE!!
     # Note that '$' in back reference variable must be escaped.
-    perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>).+</\${1}${gpu_use}</s" "$app_path"
+    # perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>).+</\${1}${gpu_use}</s" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout is "retval 0"
