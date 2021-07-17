@@ -344,7 +344,7 @@ if [[ $names ]]; then
         fi
     done <<<"$names"
 fi
-if ((invaltask_num > 0)) && [[ $monitor_only == no || $status_only == no ]]; then
+if ((invaltask_num > 0)) && [[ $monitor_only == no && $status_only == no ]]; then
     echo "Tasks other than $gravtask_tag and LATeah are in queue. Task X values may be invalid;" | tee -a $log_file
     echo "    therefore, task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
     minimize_X=yes
@@ -564,7 +564,7 @@ fi
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
 #   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-if [[ $monitor_only == no || $status_only == no ]]; then
+if [[ $monitor_only == no && $status_only == no ]]; then
     if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)); then
         minimize_X=yes
         echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
@@ -862,8 +862,8 @@ if ((num_wait >= 1)); then
     newGB=$(bc <<<"$vGB_used + $waitGB")
     vpct_new=$(bc <<<"100 * $newGB / $vGB_total")
 # Calculate predicted VRAM% only if tasks are "Ready to start" $readyDF_hi > 0 and
-#   tasks are running (frac_hi is not at stub value of 0) AND
-#   there are tasks Ready to start (readyDF_hi is not at stub value of 0).
+#   tasks are running (frac_hi is not at initialized value of 0) AND
+#   there are tasks Ready to start (readyDF_hi is not at initialized value of 0).
 elif ((num_wait == 0)) &&
     [[ $(bc <<<"$frac_hi == 0") -eq 0 ]] && # i.e. frac_hi=0 is False; no tasks Running.
     [[ $(bc <<<"$readyDF_hi == 0") -eq 0 ]]; then # i.e. readyDF_hi=0 is False.
@@ -894,7 +894,7 @@ if ((vpct_new >= vpct_max)) ||
     [[ $(bc <<<"$frac_hi >= 0.98") -eq 1 ]] ||
     [[ $(bc <<<"$frac_lo <= 0.05") -eq 1 ]] ||
     [[ $(bc <<<"$gttpct_curr_hi >= $gpct_max") -eq 1 ]]; then
-    incr_X="no"
+    incr_X=no
 fi
 
 ############## Main decision engine for changing task multiples. ##############
@@ -911,7 +911,7 @@ if ((vpct_curr < vpct_max)) && [[ $incr_X == yes ]] && [[ $minimize_X == no ]]; 
             new_X=$x
             # Need to convert task X to decimal fraction to use in app_config.xml.
             gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-            change_X="yes"
+            change_X=yes
             # echo "Old X was $curr_X, new higher X is $new_X" | tee -a $log_file
             break # Stop when first greater x is found.
         elif ((curr_X >= x)); then
@@ -925,7 +925,7 @@ elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
         if ((curr_X > x)); then
             new_X=$x
             gpu_use=$(bc <<<"scale=2; 1 / $new_X")
-            change_X="yes"
+            change_X=yes
             # echo "Old X was $curr_X, new lower X is $new_X" | tee -a $log_file
             break # Stop when first lesser x is found.
         elif ((curr_X <= x)); then
