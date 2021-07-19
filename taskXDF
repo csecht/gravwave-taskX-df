@@ -25,7 +25,7 @@
 #   for the new permissions to take effect.
 
 # This script edits the app_config.xml file of the boinc-client
-#   in response to dynamic AMD GPU memory requirements during task computation.
+#   in response to dynamic AMD GPU memory requirements during GW task computation.
 #   The scheme uses a conservative approach to change app_config, such that
 #     the strictest current limitations of any card control task multiplicity of all cards.
 #   Consequently, the fewer number of cards, the better the expected productivity gains.
@@ -46,7 +46,7 @@ config_file=$(basename -- $0).cfg
 . ./$config_file
 
 ################# Functions ############################################
-# Need to know highest or lowest values among all active cards because boinc task multiples
+# Need to know highest values among all active cards because boinc task multiples
 #   apply to all cards, thus need to use the most conservative memory values to apply to all.
 # For single card systems, something like this code example would suffice:
 #   vGB_total=$(cat /sys/class/drm/card1/device/mem_info_vram_total)
@@ -130,7 +130,7 @@ gttpct_hi() {
 #    echo $gttpct_curr_lo
 #}
 
-# Functions to play tones in PC external speakers; Used for notifications.
+# Functions to play tones in PC speakers; Used for notifications.
 # Distros like Arch Linux, Gentoo, Lubuntu, may not have PulseAudio package installed,
 #    so need to check whether paplay command exists.
 # source: https://askubuntu.com/questions/277215/how-to-make-a-sound-once-a-process-is-complete
@@ -174,29 +174,42 @@ notice_tone3() {
     fi
 }
 
-# Function to populate and re-populate all BOINC task data
-all_boinc_data() {
+# Function to populate or re-populate all BOINC task data.
+get_boinc_data() {
+    # NOTE: when there are no tasks in queue, the value of $tasks will just be "======== Tasks ========".
     tasks="$(${boinc_cmd} --get_tasks)"
     sleep 0.2
-    # Need to re-populate task state data for accurate $findDFs, below.
+    # Need to parse task names from all queued tasks to calculate DFs of relevant tasks.
     names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
+    # Parse data for all tasks for additional script processing and evaluating BOINC conditions.
+    # Prepend newline to the 'states' vars so later 'paste' retains register with $allDFs.
+    # Only running, waiting, and suspended tasks will have a 'fraction done' tag.
     states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
     schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
     actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
     fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
+    # Need counts of tasks in various states.
+    # NOTE: Do not use set -e with grep -c for counting b/c when nothing is found
+    #   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
+    #   If set -e is used, pipe grep to wc, e.g., num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks" | wc -l)
     num_all_tasks=$(wc -l <<<"$names")
     num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-    num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
+    num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks") # Includes all tasks when Project suspended by user.
     num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
     num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
     num_suspended_by_user=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
+    # Need to handle instance when no tasks are in queue b/c wc -l returns 1 for an empty "" $names;
+    #   in that case $num_all_tasks needs to be set to zero.
+    if [[ ! $names ]]; then
+        num_all_tasks=0
+    fi
 }
 ################# END of Functions section ####################################
 
-# Need a convenient spacer for printing data and notices.
-# 16 spaces equal length of $(date "+%b %d %T") string.
-# Not really sure where to best place this in script.
-indent=$(printf ' %.0s' {1..16})
+# Not really sure where in script to best define this var.
+# Need a convenient way to space-indent data and notices on printed lines that follow a timedated line.
+datelen=$(echo date "+%b %d %T" | wc -c)
+indent=$(printf "%*s%s" $datelen '' " ")
 
 #################### BEGIN error checking, housekeeping, and variable validation ##################
 # Need to check if multiple taskXDF scripts are active b/c calls to boinccmd may be conflicting.
@@ -240,7 +253,7 @@ elif [[ ! $1 ]] || [[ $1 =~ -help ]] || [[ $1 =~ [0-9]+ ]]; then
     echo "Use --status as argument to see current task and GPU metrics.
     For automation of task multiplicities, use the timer script.
     For instructions and version number, use the --help argument with the timer script."
-    exit
+    exit 0
 fi
 
 # The valid X list assumes there are UP TO five valid task multiples from .cfg.
@@ -347,12 +360,7 @@ fi
 ##################### END error checking, housekeeping, and variable validation ###################
 
 ############################### BEGIN task and GPU data collection ################################
-# TODO: consider putting tasks, names, states, and num_ assignments together in a function b/c all need to be re-assigned after any pause or update.
-tasks="$(${boinc_cmd} --get_tasks)"
-sleep 0.2
-# NOTE: when there are no tasks in queue, the value of $tasks will just be "======== Tasks ========".
-# Parse task names from all queued tasks; used for calculating DF.
-names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
+get_boinc_data
 
 # Task X changes only for task names with two search frequency values present: GW tasks.
 #   ..but that task X can also be used for FGRP (LATeah) tasks.
@@ -374,15 +382,6 @@ if ((invaltask_num > 0)) && [[ $monitor_only == no && $status_only == no ]]; the
     minimize_X=yes
     notice_tone2
 fi
-
-# Parse relevant lines from all tasks; used for eval of waiting, lookahead, or incrementing.
-# Prepend newline to the 'states' vars so later paste retains register with $allDFs.
-# Only running, waiting, and suspended tasks will have a 'fraction done' tag.
-#states=""$'\n'"$(echo "$tasks" | grep '   state' | awk '{sub("   state: ","",$0); print}')"
-states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
-schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
-actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
-fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
 
 # Need to get the  highest progressed running task, b/c a card with a task at 99% completion
 #   or at the CPU transition stage may have a lower than needed VRAM% for running that task.
@@ -411,30 +410,15 @@ elif [[ ! $fracdone ]]; then # test for $fracdone being unset.
     frac_lo=0.01
 fi
 
-# Need to handle instance when no tasks are in queue b/c wc -l returns 1 for an empty "" $names;
-#   in that case $num_all_tasks needs to be set to zero.
-num_all_tasks=$(wc -l <<<"$names")
-if [[ ! $names ]]; then
-    num_all_tasks=0
-fi
-
-# Need to stop script if have run out of tasks.
+# Exit point. Need to stop script if have run out of tasks.
 if ((num_all_tasks == 0)); then
     echo "$(date "+%b %d %T") No tasks are available; check BOINC Manager." | tee -a $log_file
     echo
     notice_tone3
+    # Need to give notice function time to sound all tones?
+    sleep 3
     exit 0
 fi
-
-# NOTE: Do not use set -e with grep -c for counting b/c when nothing is found,
-#   grep returns a non-zero stderr, causing set -e to exit script even though grep returns "0".
-#   If set -e is used, pipe grep to wc:  | wc -l
-#    E.g., num_run=$(grep 'active_task_state: EXECUTING' <<<"$tasks" | wc -l)
-num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
-num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
-num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
-num_suspended_by_user=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
 
 ############## BEGIN Auto-suspend condition; toggled in $config_file ##########
 # A GW task, at any taskX, taking longer than expected may have lost GPU processing and give a compute error.
@@ -513,7 +497,7 @@ fi
 # Set current X if all is well; reset or update Project if not.
 # If all tasks are waiting to upload for some reason, update the Project in attempt
 #   to break the log jam.
-# Final forced exit point if all is not well (have run out of tasks).
+# Final forced exit points if all is not well (have run out of tasks).
 # NOTE: $curr_X will not be accurate if non-AMD cards are crunching.
 # NOTE: $curr_X will not be accurate if CPU tasks are running.
 # Wrong task X settings also may be applied when the number of tasks running is limited
@@ -534,10 +518,21 @@ if ((num_run > 0)); then
         echo "$(date "+%b %d %T") NOTICE: BOINC client is about to run out of tasks."
     fi
 elif ((num_run == 0)); then
+    # $num_run == 0 happens transiently and rarely for unknown reasons.
+    #   Need to avoid this instance by pausing and recounting EXECUTING tasks before acting on no tasks running.
+    sleep $sleep_t
+    get_boinc_data
+
+    if ((num_all_tasks == 0)); then
+        # No need to continue with evaluations, so quit script here.
+        echo "$(date "+%b %d %T") NOTICE: BOINC client has run out of tasks. Check BOINC Manager."
+        exit 0
+    fi
+
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
-        echo "Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
+        echo "${indent} Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
         # TODO: Consider adding option for audible notifications on|off.
         notice_tone3
         # Sleep is to allow boinc to get an update from the server. Extended sleep length may cause odd reporting behavior.
@@ -545,57 +540,37 @@ elif ((num_run == 0)); then
         recheck=yes
     fi
 
-    # $num_run == 0 happens transiently and rarely for unknown reasons, triggering unnecessary project resumption command.
-    #   Need to avoid this condition by pausing and confirming number of EXECUTING tasks before a resumption.
-    sleep $sleep_t
-    tasks="$(${boinc_cmd} --get_tasks)"
-    sleep 0.2
-    num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-    recheck=yes
-
-    #  No tasks running is confirmed, so now proceed with actions.
-    if ((num_run == 0)); then
-        #        ${boinc_cmd} --project http://einstein.phys.uwm.edu/ resume
-        echo "$(date "+%b %d %T") No tasks are running. Check Boinc Manager." | tee -a $log_file
-        if ((num_suspended_by_user > 0)); then
-            echo "${indent}$num_suspended_by_user tasks have been suspended by user. Consider resuming them..."
-        fi
-        #        echo "Script pausing $((sleep_factor * sleep_t)) sec. following attempted task resumption." >>$log_file
-        #        sleep $((sleep_factor * sleep_t))
-        #        recheck=yes
+    if ((num_suspended_by_user > 0)); then
+        echo "$(date "+%b %d %T") *** NO TASKS are running *** $num_suspended_by_user tasks have been suspended by user.
+        You might want to resume them. Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
+        exit 0
     fi
 
     if [[ $recheck == yes ]]; then
-        tasks="$(${boinc_cmd} --get_tasks)"
-        sleep 0.2
         # Need to re-populate task state data for accurate $findDFs, below.
-        names=$(echo "$tasks" | grep '^   name' | sed 's/   name: //')
-        states=""$'\n'"$(echo "$tasks" | grep '   state' | sed 's/   state: //')"
-        schstates=""$'\n'"$(echo "$tasks" | grep 'scheduler state' | sed 's/   scheduler state: //')"
-        actstates=""$'\n'"$(echo "$tasks" | grep 'active_task_state' | sed 's/   active_task_state: //')"
-        fracdone=$(echo "$tasks" | grep 'fraction done' | sed 's/   fraction done: //')
-        num_all_tasks=$(wc -l <<<"$names")
-        num_run=$(grep -c 'active_task_state: EXECUTING' <<<"$tasks")
-        num_wait=$(grep -c 'scheduler state: preempted' <<<"$tasks")
-        num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
-        num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
-        num_suspended_by_user=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
-
+        get_boinc_data
         if ((num_run > 0)); then
             curr_X=$((num_run / num_gpu))
-            echo "$num_run tasks are running following BOINC task resumption or update." | tee -a $log_file
+            echo "$(date "+%b %d %T") $num_run tasks are running following BOINC Project update." | tee -a $log_file
         elif ((num_run == 0)); then
-            echo "$(date "+%b %d %T") Still no tasks running. Check BOINC Manager." | tee -a $log_file
+            echo "$(date "+%b %d %T")  *** NO TASKS are running *** Check BOINC Manager." | tee -a $log_file
             echo
             notice_tone3
+            sleep 3
             # No need to continue with evaluations, so quit here.
             exit 0
         fi
     fi
+
+    # If conditions got to here, then a Project suspension is the likely cause.
+    echo "$(date "+%b %d %T") *** NO TASKS are running ***" | tee -a $log_file
+    echo "${indent}Check BOINC Manager. Is the Project suspended?
+    Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
+    exit 0
 fi
 
-# Check whether current running task multiple is valid in case app_config.xml
-#    was manually edited to a multiple not specified in  .cfg.
+# Check whether current running task multiple is valid just in case app_config.xml
+#    was manually edited to a multiple not specified in .cfg.
 # In the main body, $minimize_X = yes sets task X to lowest valid X.
 # In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
 #   or when boinc is running out of tasks, all tasks in queue will be running,
@@ -612,21 +587,15 @@ if ((num_run > 0 && num_suspended_by_user > 0)); then
     echo
     echo "$(date "+%b %d %T") *** You have $num_suspended_by_user suspended task(s). ***" | tee -a "$log_file"
     echo "${indent}BOINC will not upload new tasks while tasks are suspended." | tee -a "$log_file"
-    if [[ $monitor_only == no && $status_only == no ]]; then
-        echo "${indent}To play it safe, task X will be set to lowest configured level..." | tee -a "$log_file"
-        echo "${indent}Warranted task X increases will be allowed when no tasks are suspended or waiting." | tee -a "$log_file"
-        minimize_X=yes
-    fi
+#    if [[ $monitor_only == no && $status_only == no ]]; then
+#        echo "${indent}To play it safe, task X will be set to lowest configured level..." | tee -a "$log_file"
+#        echo "${indent}Warranted task X increases will be allowed when no tasks are suspended or waiting." | tee -a "$log_file"
+#        minimize_X=yes
+#    fi
 fi
 
-#echo "$num_gpu AMD card(s) recognized.
-#Current task multiple: ${curr_X}X
-#$num_run task(s) currently running.
-#$num_wait task(s) waiting to run.
-#$num_all_tasks task(s) total in queue." | tee -a $log_file
-
 # Calculate the delta frequency, DF, for every GW task in queue.
-# Delta frequencies of all GW tasks, $allDFs, are later filtered for relevant tasks.
+# Delta frequencies of all GW tasks, $allDFs, are later filtered to relevant tasks.
 # This regex should not match to non-GW task names.
 # shellcheck disable=SC2162
 while read name; do
@@ -646,7 +615,7 @@ done <<<"$names"
 findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo "$actstates"))
 
 # Get DFs of all running (scheduled) tasks.
-# Get DF of all waiting (preempted) tasks and the next waiting task to run.
+# Get DF of all waiting (preempted) tasks and the next waiting task to run. Includes suspended tasks.
 # Get DF of all n ready (downloaded & uninitialized) tasks, given n GPUs, and next ready task.
 #   Can look-ahead for more ready tasks with: if  (( cnt <= (($num_gpu*$curr_X)) ))
 #     instead of: if ((cnt <= num_gpu)).
@@ -661,13 +630,13 @@ readyDF_hi=0
 while read line; do
     if [[ $line =~ EXECUTING ]]; then # < Running tasks
         runDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
-        if [[ ! $runDF ]]; then # is not a GW task.
+        if [[ ! $runDF ]]; then # is not a GW task or no tasks running
             runDF=na
         fi
         runDF_all="${runDF_all}$runDF " # Used only for stdout or logging
     fi
 
-    if [[ $line =~ preempted ]]; then # < Waiting to run
+    if [[ $line =~ preempted ]]; then # < Waiting to run or Suspended by user
         waitDF=$(grep -oE "[0-9]?\\.[0-9]{2}" <<<"$line")
         if [[ ! $waitDF ]]; then # is not a GW task.
             waitDF=na
@@ -729,15 +698,17 @@ vGB_used=$(vgbused)
 vGB_total=$(vgbtotal)
 
 ################ Report time interval metrics  ################################
-# Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 # Tack on some leading zeros for pretty printing.
 #report_int=1  ## TESTING
 if ((curr_X > 0)); then
     taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
-elif ((curr_X == 0)); then
-    taskGB='n/a'
+# Nothing specific in mind here, but just in case things happen...
+elif ((curr_X == 0)) || [[ ! $curr_X ]]; then
+    curr_X=1
+    taskGB=0
 fi
 
+# Need to specify base 10 for $tic (minute) variable in bash b/c may get warning when left as octal.
 #tic=10#$(date +%M)
 gttpct_fmt=$(printf '%.2f' "$gttpct_curr_hi")
 
@@ -777,12 +748,13 @@ fi
 
 # Need to notify user when non-GW tasks are running or when there are no GW tasks running,
 #   but do not need to repeat the notice in the Terminal every interval.
-#   So keep track whether GW notifications are persistent by logging them in the log file;
-#     any GW task notice from the prior interval should be last line in the log file.
-#     Can then overwrite in the Terminal any prior notification line with the most recent notice.
-nonGW_flag=$(tail -n1 $log_file)
+#   Keep track whether GW notifications are persistent by logging them in the log file;
+#     any GW task notice from the prior interval should be the last line in the log file,
+#     so can then overwrite in the Terminal any prior notification line with the most recent notice.
+nonGW_flag=$(tail -1 $log_file)
 # Use ansi escape codes to move cursor to beginning of previous line & delete entire line.
 del_line_above="\\x1b[1F\\x1b[K"
+
 if [[ ! $runDF_all =~ [0-9] && $status_only == yes ]]; then
     echo "$(date "+%b %d %T") NO GW TASKS are running."
 elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
@@ -790,20 +762,19 @@ elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
         printf "$(date "+%b %d %T") NO GW TASKS are running.\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
         printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running.\n"
-        # Do not include escape codes in log text.
+        # ..need to remove font color escape codes from file text.
         echo "$(date "+%b %d %T") NO GW TASKS are running." >>$log_file
     fi
 elif [[ $runDF_all =~ na && $status_only == yes ]]; then
     echo "$(date "+%b %d %T") Non-GW task(s) running."
 elif [[ $runDF_all =~ na && $status_only == no ]]; then
-    # first interval with non-GW task (or following a timed report)
+    # first interval with non-GW task (or following a logged report)
     if [[ ! $nonGW_flag =~ Non-GW ]]; then
-        printf "$(date "+%b %d %T") Non-GW task(s) started.\n" | tee -a $log_file
+        printf "$(date "+%b %d %T") Non-GW task(s) running.\n" | tee -a $log_file
     # subsequent intervals (but not following a timed report)
-    # TODO: FIX bug: this condition isn't reached across intervals; above condition repeats notice on next line in Terminal.
     elif [[ $nonGW_flag =~ Non-GW ]]; then
-        printf "${del_line_above}$(date "+%b %d %T") Non-GW task(s) continued to run.\n"
-        # Do not include escape codes in log text.
+        printf "${del_line_above}$(date "+%b %d %T") Non-GW task(s) continue to run.\n"
+        # ..need to remove font color escape codes from file text.
         echo "$(date "+%b %d %T") Non-GW task(s) running." >>$log_file
     fi
 fi
@@ -822,7 +793,7 @@ fi
 # $sleep_t is set in  .cfg.
 #sleep_t=1  ## TESTING
 sleep_factor=2
-if ((vpct_curr < vpct_min)); then
+if ((vpct_curr < vpct_min)) && ((num_run > 0)); then
     echo -n "$(date "+%b %d %T") Pausing script $((sleep_factor * sleep_t)) sec:" | tee -a $log_file
     echo " VRAM% of $vpct_curr is below set limit of $vpct_min" | tee -a $log_file
     sleep $((sleep_factor * sleep_t))
@@ -944,7 +915,7 @@ fi
 ############## Main decision engine for changing task multiples. ##############
 if ((curr_X > 0)); then
     new_X=$curr_X
-elif ((curr_X == 0)); then
+elif ((curr_X == 0)) || [[ ! $curr_X ]]; then
     new_X=1
 fi
 change_X="no"
@@ -990,11 +961,12 @@ set -e
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
 if ((curr_X > 0)); then
     taskGB=$(printf '%.2f' "$(bc <<<"scale=2; $vGB_used / $curr_X")")
+# By this point $curr_X should not equal 0, but just in case... (use integer, not letters)
 elif ((curr_X == 0)); then
-    curr_X='n/a'
+    curr_X=1
 fi
 
-# Need to handle unknown event where gpu_use is not defined.
+# Need to handle unknown events where gpu_use is not defined.
 if [[ ! $gpu_use ]]; then
     gpu_use=1
 fi
@@ -1010,16 +982,15 @@ if [[ $change_X == yes ]] && [[ $monitor_only == yes ]]; then
 elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # This sed regex matches all gpu_usage values in app_config file.
     #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
-    # This perl substitution only changes the gpu_usage value that most closely follows the GW app name.
-    # Note necessity of escaping the $ in backreferences and use of non-greedy matches.
+    # This perl substitution only changes the gpu_usage value that most closely follows the GW app name in app_config.
+    # Note necessities of escaping the $ in back references and use of non-greedy matches across newlines.
     perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>)\d?\.?\d+(<\/gpu_usage>)?/\${1}${gpu_use}\${2}/s" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     if [[ $minimize_X == no ]]; then
         echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     elif [[ $minimize_X == yes ]]; then
-        echo "${indent}BASED ON—> Reset to lowest configured task X of $lowest_X; reason(s):" | tee -a $log_file
-        # i.e. something set 'minimize_X == yes'
-        echo "${indent}An invalid task X, retained high GTT%, task(s) suspended, or found other than GW or FGRP tasks." | tee -a $log_file
+        echo "${indent}BASED ON—> Need to reset to lowest configured task X of $lowest_X because:" | tee -a $log_file
+        echo "${indent}Invalid task X, retained high GTT%, or found other than GW and FGRP tasks." | tee -a $log_file
     fi
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout is "retval 0"
 fi
