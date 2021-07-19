@@ -743,7 +743,7 @@ fi
 # $log_all toggle is set in the .cfg file; 'yes' is the default.
 if [[ $log_all == yes ]]; then
     printf "$(date "+%b %d %T") │ ${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" >>$log_file
-    echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead] <<log_all=yes in $config_file" >>$log_file
+    echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead] <<log_all=yes" >>$log_file
 fi
 
 # Need to notify user when non-GW tasks are running or when there are no GW tasks running,
