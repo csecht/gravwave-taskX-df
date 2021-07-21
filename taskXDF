@@ -258,7 +258,7 @@ fi
 
 # The valid X list assumes there are UP TO five valid task multiples from .cfg.
 # Need to trim trailing white space with xargs for when not all 5 Xs are defined.
-# The X list is used in main body to raise task multiples;
+# The X list is used in main body decision engine to raise task multiples;
 #   reversed list used to lower task multiples.
 # Highest X is used to check for limiting <project_max_concurrent> value.
 # Lowest X is used for emergency decrementing of task X.
@@ -357,31 +357,41 @@ elif ((size_log == 0)); then
     echo "----------------------------------------" >>$log_file
 fi
 
+# Check whether current running task multiple is valid just in case app_config.xml
+#    was edited by the user to a multiple not specified in .cfg.
+# When $minimize_X = yes, task X is set to lowest valid X in the main body decision engine.
+# In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
+#   or when boinc is running out of tasks, all tasks in queue will be running,
+#   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
+get_boinc_data  # <-First run to populate task data variables.
+minimize_X=no
+if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)) && [[ $monitor_only == no && $status_only == no ]]; then
+    echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
+    minimize_X=yes
+fi
 ##################### END error checking, housekeeping, and variable validation ###################
 
-############################### BEGIN task and GPU data collection ################################
-get_boinc_data
+############################### BEGIN task analysis and GPU data collection #######################
 
-# Task X changes only for task names with two search frequency values present: GW tasks.
-#   ..but that task X can also be used for FGRP (LATeah) tasks.
-# In the main body, $minimize_X = yes sets task X to lowest valid configured X.
-minimize_X=no
-invaltask_num=0
+# Task X will change only for task names with two search frequency values present, that is, GW GPU tasks.
+#   ..but a GPU running that task X could also be running LATeah tasks (FGRPBG1 app).
 # shellcheck disable=SC2162
 # When no tasks in queue, $names is empty, so then don't increment $invaltask_num.
-if [[ $names ]]; then
-    while read name; do
-        if [[ ! $name =~ $gravtask_tag ]] && [[ ! $name =~ LATeah ]]; then
-            ((invaltask_num++))
-        fi
-    done <<<"$names"
-fi
-if ((invaltask_num > 0)) && [[ $monitor_only == no && $status_only == no ]]; then
-    echo "Tasks other than $gravtask_tag and LATeah are in queue. Task X values may be invalid;" | tee -a $log_file
-    echo "    therefore, task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
-    minimize_X=yes
-    notice_tone2
-fi
+### Testing for invalid tasks is NOT NEEDED as long as the only two GPU apps are for GW and FGRPBG. ###
+#invaltask_num=0
+#if [[ $names ]]; then
+#    while read name; do
+#        if [[ ! $name =~ $gravtask_tag ]] && [[ ! $name =~ LATeah ]]; then
+#            ((invaltask_num++))
+#        fi
+#    done <<<"$names"
+#fi
+#if ((invaltask_num > 0)) && [[ $monitor_only == no && $status_only == no ]]; then
+#    echo "Tasks other than $gravtask_tag and LATeah are in queue. Task X values may be invalid;" | tee -a $log_file
+#    echo "    therefore, task X will be set to its lowest configured value: $lowest_X" | tee -a $log_file
+#    minimize_X=yes
+#    notice_tone2
+#fi
 
 # Need to get the  highest progressed running task, b/c a card with a task at 99% completion
 #   or at the CPU transition stage may have a lower than needed VRAM% for running that task.
@@ -506,8 +516,9 @@ fi
 # Need to pause script following task resumption to get accurate memory use readings in main body.
 # Calculating X by num_run/num_gpu seems prone to errors from unaccounted BOINC or script conditions.
 # Base level sleep_t is set in  .cfg. Is used to add time for GPU to attain stable run parameters.
-sleep_factor=2
+sleep_factor=8
 recheck=no
+# TODO: Determine why $num_run == 0 happens transiently and rarely for unknown reasons.
 if ((num_run > 0)); then
     curr_X=$((num_run / num_gpu))
     # Need to cover condition when only one task is running, but >1 GPU are available.
@@ -518,11 +529,6 @@ if ((num_run > 0)); then
         echo "$(date "+%b %d %T") NOTICE: BOINC client is about to run out of tasks."
     fi
 elif ((num_run == 0)); then
-    # $num_run == 0 happens transiently and rarely for unknown reasons.
-    #   Need to avoid this instance by pausing and recounting EXECUTING tasks before acting on no tasks running.
-    sleep $sleep_t
-    get_boinc_data
-
     if ((num_all_tasks == 0)); then
         # No need to continue with evaluations, so quit script here.
         echo "$(date "+%b %d %T") NOTICE: BOINC client has run out of tasks. Check BOINC Manager."
@@ -532,11 +538,12 @@ elif ((num_run == 0)); then
     if ((num_all_tasks == num_uploaded)); then
         ${boinc_cmd} --project http://einstein.phys.uwm.edu/ update
         echo "$(date "+%b %d %T") ALL tasks waiting to be reported, so updating Project..." | tee -a $log_file
-        echo "${indent} Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
+        echo "${indent}Your daily task limit may have been reached. Check BOINC Event log." | tee -a $log_file
+        echo "${indent}Script pausing for $((sleep_factor * sleep_t)) s to get Project update from server." | tee -a $log_file
         # TODO: Consider adding option for audible notifications on|off.
         notice_tone3
         # Sleep is to allow boinc to get an update from the server. Extended sleep length may cause odd reporting behavior.
-        sleep 70
+        sleep $((sleep_factor * sleep_t))
         recheck=yes
     fi
 
@@ -553,32 +560,21 @@ elif ((num_run == 0)); then
             curr_X=$((num_run / num_gpu))
             echo "$(date "+%b %d %T") $num_run tasks are running following BOINC Project update." | tee -a $log_file
         elif ((num_run == 0)); then
-            echo "$(date "+%b %d %T")  *** NO TASKS are running *** Check BOINC Manager." | tee -a $log_file
+            echo "$(date "+%b %d %T")  *** STILL NO TASKS running *** Check BOINC Manager." | tee -a $log_file
             echo
             notice_tone3
             sleep 3
-            # No need to continue with evaluations, so quit here.
+            # No need to continue with evaluations, so stop script here.
             exit 0
         fi
     fi
 
-    # If conditions got to here, then a Project suspension is the likely cause.
+    # If conditions got to here, then a Project suspension is the likely cause,
+    #    but conditions not covered above will also end up here.
     echo "$(date "+%b %d %T") *** NO TASKS are running ***" | tee -a $log_file
     echo "${indent}Check BOINC Manager. Is the Project suspended?
-    Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
+        Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
     exit 0
-fi
-
-# Check whether current running task multiple is valid just in case app_config.xml
-#    was manually edited to a multiple not specified in .cfg.
-# In the main body, $minimize_X = yes sets task X to lowest valid X.
-# In cases when <project_max_concurrent> of app_config.xml limits the number of running tasks
-#   or when boinc is running out of tasks, all tasks in queue will be running,
-#   so task multiple should not be changed (minimize_X stays "no" for main body evaluation).
-
-if [[ ! "$valid_Xs" =~ $curr_X ]] && ((num_all_tasks > num_run)) && [[ $monitor_only == no && $status_only == no ]]; then
-    echo "$(date "+%b %d %T") Initial task multiple of $curr_X is invalid and will be reset." | tee -a "$log_file"
-    minimize_X=yes
 fi
 
 # Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
@@ -620,7 +616,7 @@ findDFs=$(paste <(echo "$allDFs") <(echo "$states") <(echo "$schstates") <(echo 
 #   Can look-ahead for more ready tasks with: if  (( cnt <= (($num_gpu*$curr_X)) ))
 #     instead of: if ((cnt <= num_gpu)).
 # This all works because <boinc-client --get_tasks> sorts tasks by order of action precedent.
-# Waiting and ready DFs are converted to VRAM usage, $vpct_new, in the main body.
+# Waiting and ready DFs are converted to VRAM usage, $vpct_new, in the decision engine.
 # IF no tasks are Ready to start, then readyDF_hi is empty(unset),
 #    then is handled later with vpct_new declaration in if ((num_wait >= 1))...
 waitDF_hi=0
@@ -739,43 +735,44 @@ if ((timer_uptime < 10)) || ((interval_mod == 0)); then
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead]" >>$log_file
 fi
 
-# Log data every timed interval (time set as a -timer argument) to the .log file.
+#   Keep track whether NO GW & non-GW task notifications are persistent by logging them in the log file;
+#     the GW notice from the prior interval needs to be the last line in the log file.
+#     This is a flag to overwrite any prior notification line in the Terminal with any recurring GW notices.
+#     Must read log BEFORE $log_all prints to file to catch previous non-GW flags on last logged line.
+nonGW_flag=$(tail -1 $log_file)
+
+# Implement user option to Log every interval to the .log file.
 # $log_all toggle is set in the .cfg file; 'yes' is the default.
 if [[ $log_all == yes ]]; then
     printf "$(date "+%b %d %T") │ ${pad}" "${num_all_tasks}" "${vpct_curr}" "${gttpct_fmt}" "${taskGB}" >>$log_file
     echo " $curr_X │ [$runDF_all] [$waitDF_all] [$readyDF_lookahead] <<log_all=yes" >>$log_file
 fi
 
-# Need to notify user when non-GW tasks are running or when there are no GW tasks running,
+# Need to notify user when non-GW tasks are running or when no GW tasks are running,
 #   but do not need to repeat the notice in the Terminal every interval.
-#   Keep track whether GW notifications are persistent by logging them in the log file;
-#     any GW task notice from the prior interval should be the last line in the log file,
-#     so can then overwrite in the Terminal any prior notification line with the most recent notice.
-nonGW_flag=$(tail -1 $log_file)
-# Use ansi escape codes to move cursor to beginning of previous line & delete entire line.
-del_line_above="\\x1b[1F\\x1b[K"
-
-if [[ ! $runDF_all =~ [0-9] && $status_only == yes ]]; then
-    echo "$(date "+%b %d %T") NO GW TASKS are running."
-elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]]; then
+# Use ANSI escape codes to move cursor to beginning of one line up & delete that entire line.
+del_line_above="\\x1b[1F\\x1b[2K"
+if [[ ! $runDF_all =~ [0-9] && $status_only == yes ]] && ((num_run > 0)); then
+    echo "$(date "+%b %d %T") NO GW TASKS are running now."
+elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]] && ((num_run > 0)); then
     if [[ ! $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$(date "+%b %d %T") NO GW TASKS are running.\n" | tee -a $log_file
+        printf "$(date "+%b %d %T") NO GW TASKS running at this time.\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS are running.\n"
+        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS running at this time.\n"
         # ..need to remove font color escape codes from file text.
-        echo "$(date "+%b %d %T") NO GW TASKS are running." >>$log_file
+        echo "$(date "+%b %d %T") NO GW TASKS running at this time." >>$log_file
     fi
 elif [[ $runDF_all =~ na && $status_only == yes ]]; then
-    echo "$(date "+%b %d %T") Non-GW task(s) running."
+    echo "$(date "+%b %d %T") Non-GW task(s) running now"
 elif [[ $runDF_all =~ na && $status_only == no ]]; then
     # first interval with non-GW task (or following a logged report)
     if [[ ! $nonGW_flag =~ Non-GW ]]; then
-        printf "$(date "+%b %d %T") Non-GW task(s) running.\n" | tee -a $log_file
+        printf "$(date "+%b %d %T") Non-GW task(s) running at this time.\n" | tee -a $log_file
     # subsequent intervals (but not following a timed report)
     elif [[ $nonGW_flag =~ Non-GW ]]; then
-        printf "${del_line_above}$(date "+%b %d %T") Non-GW task(s) continue to run.\n"
+        printf "${del_line_above}$(date "+%b %d %T") Non-GW task(s) running at this time.\n"
         # ..need to remove font color escape codes from file text.
-        echo "$(date "+%b %d %T") Non-GW task(s) running." >>$log_file
+        echo "$(date "+%b %d %T") Non-GW task(s) running at this time" >>$log_file
     fi
 fi
 
@@ -912,7 +909,7 @@ if ((vpct_new >= vpct_max)) ||
     incr_X=no
 fi
 
-############## Main decision engine for changing task multiples. ##############
+############## Main body decision engine for changing task multiples. ##############
 if ((curr_X > 0)); then
     new_X=$curr_X
 elif ((curr_X == 0)) || [[ ! $curr_X ]]; then
@@ -948,14 +945,15 @@ elif ((vpct_curr >= vpct_max)) && [[ $minimize_X == no ]]; then
         fi
     done
 
-# or reset X to lowest valid X because of invalid task X, retained high GTT%, suspended task, or non-GW/non_FGRP task.
+# or reset X to lowest valid X because of, e.g.:
+#    invalid task X or retained high GTT%.
 elif [[ $minimize_X == yes ]]; then
     change_X=yes
     gpu_use=$(bc <<<"scale=2; 1 / $lowest_X")
     # echo "Task X of $curr_X will now reset to $lowest_X" | tee -a $log_file
 fi
 
-############## Edit app_config.xml and issue a task X change report ###########
+############## Edit app_config.xml and issue a task X change report ################
 set -e
 
 old_use=$(bc <<<"scale=2; 1 / $curr_X") # Used for stdout and logging.
@@ -983,15 +981,15 @@ elif [[ $change_X == yes ]] && [[ $monitor_only == no ]]; then
     # This sed regex matches all gpu_usage values in app_config file.
     #    sed -E -i.bak "s/gpu_usage>.+</gpu_usage>$gpu_use</" "$app_path"
     # This perl substitution only changes the gpu_usage value that most closely follows the GW app name in app_config.
-    # Note necessities of escaping the $ in back references and use of non-greedy matches across newlines.
+    # Note necessities of escaping the $ in back references and use of non-greedy matching across newlines.
     perl -i.bak -p0e "s/(<name>$gravapp<\/name>.*?<gpu_usage>)\d?\.?\d+(<\/gpu_usage>)?/\${1}${gpu_use}\${2}/s" "$app_path"
     echo "$(date "+%b %d %T") CHANGE—> old gpu_usage:$old_use, new gpu_usage:$gpu_use" | tee -a $log_file
     if [[ $minimize_X == no ]]; then
         echo "${indent}BASED ON—> vram%: $vpct_curr, gtt%: $gttpct_curr_hi, vram%+ready%:~${vpct_new}%" | tee -a $log_file
     elif [[ $minimize_X == yes ]]; then
         echo "${indent}BASED ON—> Need to reset to lowest configured task X of $lowest_X because:" | tee -a $log_file
-        echo "${indent}Invalid task X, retained high GTT%, or found other than GW and FGRP tasks." | tee -a $log_file
+        echo "${indent}Invalid task X or retained high GTT%." | tee -a $log_file
     fi
     ${boinc_cmd} --read_cc_config 1>/dev/null #boinc stdout is "retval 0"
 fi
-######################### TH.. TH.. THAT'S ALL FOLKS! #########################
+######################### TH.. TH.. THAT'S ALL FOLKS! ##############################
