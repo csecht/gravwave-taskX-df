@@ -584,8 +584,7 @@ elif ((num_run == 0)); then
     exit 0
 fi
 
-# Need to set curr_X to a conservative setting if a task has been manually suspended in BoincManager
-#   ...That is, suspended but not yet resumed, which would put it in a 'preempted'/waiting state.
+# Need to provide notification when user has suspended a task.
 if ((num_run > 0 && num_suspended_by_user > 0)); then
     echo
     echo "$(date "+%b %d %T") *** You have $num_suspended_by_user suspended task(s). ***" | tee -a "$log_file"
