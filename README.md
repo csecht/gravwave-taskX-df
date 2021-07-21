@@ -16,7 +16,41 @@ Script execution on timed intervals is controlled through the timer script, task
 Additional user-specified run parameters are set in taskXDF.cfg. This configuration file can be edited with any text editor and can be edited on-the-fly while the timer is running, which may be useful to optimize settings as GW tasks run. Read the file comments to understand the settings.
 
 The timer script is executed with a time parameter argument in seconds; e.g., `~$ ./taskXD-timer 60`. 
-Usage details can be read with `~$ ./taskXD-timer --help`
+Usage details can be read with `~$ ./taskXD-timer --help`, which brings up:
+```
+$ ./taskXDF-timer --help
+
+    A time interval, in seconds, for running the taskXDF-timer script is required
+        to automate changes to task X.
+    e.g., ./taskXDF-timer 60
+    Values less than 60 will be converted to 60. Decimal seconds are invalid.
+
+    Optional arguments: --header,  --status, or --help
+        --header, provides explanation of types of interval data reported, then exits.
+        --status, provides current BOINC and GPU metrics, then exits; does not change task X.
+        --help, brings up this message, then exits.
+
+    This timer script provides continuous timed runs of the taskXDF bash script.
+
+    A time interval of 0 (zero) provides a one-off status report from taskXDF,
+        otherwise a non-zero interval time provides interval reports and taskX adjustments.
+    A time interval of 60 will provide good script responsiveness.
+
+    To monitor task status on a regular interval without changing task X, edit the
+        taskXDF.cfg file to monitor_only=yes (default is 'no').
+
+    Supported AMD GPUs: Ellesmere, Polaris, Vega, or Navi that are running
+        Einstein@Home gravitational wave and gamma-ray GPU tasks.
+    Task X is changed only for the GW app.
+    The script may not work properly if CPU tasks are queued or running.
+
+    A log file of Terminal output is created in the current folder.
+
+    Script run parameters can be configured in the taskXDF.cfg text file.
+
+    Version: 0.10.2
+
+```
 
 Additional details for use are provided in the comments of the scripts and .cfg text file. Please read through those before using to understand what's going on. 
 
@@ -61,3 +95,5 @@ more than 40 minutes to complete. This time can be reset in the taskXDF.cfg file
 Check that this limit is reasonable for your system.
 There an option in taskXDF.cfg to not suspend a too-long task; the default setting is
 auto_suspend=yes, which can be changed to auto_suspend=no.
+
+

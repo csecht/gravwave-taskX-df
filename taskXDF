@@ -478,7 +478,7 @@ if [[ $running_names ]]; then
         if ((runningtask_reps > max_runningtask_count)); then
             echo "$(date "+%b %d %T") NOTICE! Task $name" | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
-            if [[ $auto_suspend == yes ]]; then
+            if [[ $auto_suspend == yes ]]; then  # Default in .cfg is 'yes'.
                 echo "    It will be SUSPENDED for 10 sec to hasten completion." | tee -a $log_file
                 ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} suspend
                 sleep 10
