@@ -198,6 +198,7 @@ get_boinc_data() {
     num_uploading=$(grep -c 'state: uploading' <<<"$tasks")
     num_uploaded=$(grep -c 'state: uploaded' <<<"$tasks") # Ready to report.
     num_suspended_by_user=$(grep -c 'suspended via GUI: yes' <<<"$tasks")
+    boinc_suspend_active=$(grep -c 'active_task_state: SUSPENDED' <<<"$tasks")
     # Need to handle instance when no tasks are in queue b/c wc -l returns 1 for an empty "" $names;
     #   in that case $num_all_tasks needs to be set to zero.
     if [[ ! $names ]]; then
@@ -516,9 +517,9 @@ fi
 # Need to pause script following task resumption to get accurate memory use readings in main body.
 # Calculating X by num_run/num_gpu seems prone to errors from unaccounted BOINC or script conditions.
 # Base level sleep_t is set in  .cfg. Is used to add time for GPU to attain stable run parameters.
+# When no tasks are running there is no need to continue with evaluations, so exit script.
 sleep_factor=8
 recheck=no
-# TODO: Determine why $num_run == 0 happens transiently and rarely for unknown reasons.
 if ((num_run > 0)); then
     curr_X=$((num_run / num_gpu))
     # Need to cover condition when only one task is running, but >1 GPU are available.
@@ -553,6 +554,13 @@ elif ((num_run == 0)); then
         exit 0
     fi
 
+    if ((boinc_suspend_active > 0)); then
+        echo "$(date "+%b %d %T") *** NO TASKS are running *** BOINC has suspended tasks because
+               one of the conditions for 'When to suspend' or 'Daily schedules' have been met.
+               Check your BOINC Manager Computing Preference if this becomes a problem." | tee -a $log_file
+        exit 0
+    fi
+
     if [[ $recheck == yes ]]; then
         # Need to re-populate task state data for accurate $findDFs, below.
         get_boinc_data
@@ -564,7 +572,6 @@ elif ((num_run == 0)); then
             echo
             notice_tone3
             sleep 3
-            # No need to continue with evaluations, so stop script here.
             exit 0
         fi
     fi
@@ -572,8 +579,8 @@ elif ((num_run == 0)); then
     # If conditions got to here, then a Project suspension is the likely cause,
     #    but conditions not covered above will also end up here.
     echo "$(date "+%b %d %T") *** NO TASKS are running ***" | tee -a $log_file
-    echo "${indent}Check BOINC Manager. Is the Project suspended?
-        Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
+    echo "${indent}Check BOINC Manager. Is the Project suspended? (look under the Projects tab)
+               Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
     exit 0
 fi
 
