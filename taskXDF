@@ -532,7 +532,7 @@ if ((num_run > 0)); then
 elif ((num_run == 0)); then
     if ((num_all_tasks == 0)); then
         # No need to continue with evaluations, so quit script here.
-        echo "$(date "+%b %d %T") NOTICE: BOINC client has run out of tasks. Check BOINC Manager."
+        echo "$(date "+%b %d %T") *** BOINC client has no tasks *** Check the BOINC Manager."
         exit 0
     fi
 
@@ -555,9 +555,9 @@ elif ((num_run == 0)); then
     fi
 
     if ((boinc_suspend_active > 0)); then
-        echo "$(date "+%b %d %T") *** NO TASKS are running *** BOINC has suspended tasks because
-               one of the conditions for 'When to suspend' or 'Daily schedules' have been met.
-               Check your BOINC Manager Computing Preference if this becomes a problem." | tee -a $log_file
+        echo "$(date "+%b %d %T") *** NO TASKS are running *** (updated every $interval_time sec.)
+        BOINC suspended tasks because a condition for 'When to suspend' was met; non-BOINC CPU usage limit?
+        Check your BOINC Manager Computing Preference if this becomes a problem." | tee -a $log_file
         exit 0
     fi
 
@@ -578,9 +578,9 @@ elif ((num_run == 0)); then
 
     # If conditions got to here, then a Project suspension is the likely cause,
     #    but conditions not covered above will also end up here.
-    echo "$(date "+%b %d %T") *** NO TASKS are running ***" | tee -a $log_file
-    echo "${indent}Check BOINC Manager. Is the Project suspended? (look under the Projects tab)
-               Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
+    echo "$(date "+%b %d %T") *** NO TASKS are running *** (updated every $interval_time sec.)
+    Check BOINC Manager. Is the Project suspended? Is there a time of day restriction?
+    Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
     exit 0
 fi
 
