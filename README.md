@@ -69,21 +69,18 @@ Jul 19 13:14:56 │     46 │    81 │ 1.67 │   1.08 │ 3 │ [.20 .20 .20 
 ```
 
 NOTES and TIPS:
-To run the main script through the timer script and avoid the need to provide authentication to edit <gpu_usage> you may want to share permissions of app_config.xml between you and boinc:
+When using taskXDF-timer to actively change the task X, you will want to
+avoid having to provide a password to edit <gpu_usage> in the app_config.xml file.
+So make yourself a group member and provide group write privileges:
 ```
-~$ sudo usermod -a -G $LOGNAME boinc
-~$ sudo usermod -a -G boinc $LOGNAME
+$ sudo chown boinc:username /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
+$ sudo chmod 660 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
 ```
-then check with:
+Check that the changes are in place:
 ```
-~$ groups boinc
-~$ groups $LOGNAME
+$ ls -l /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
+-rw-rw-r-- 1 boinc yourusername 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
 ```
-
-After adding yourself to the boinc group, a system reboot is needed for the new permissions to take effect.
-Check that the boinc group has write permission for the app_config.xml file, e.g.:
-
-`-rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml`
 
 You will need to manually launch the timer script on each machine reboot.
 To keep taskX adjustments responsive to changing DFs of GW tasks, use a 60 second time interval argument when launching the timer script.

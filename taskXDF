@@ -18,11 +18,10 @@
 
 # This script is intended to be used with the timer script, taskXDF-timer.
 # To avoid having to provide a password to edit the app_config.xml file,
-#   make yourself a member of the boinc permissions group: $ sudo usermod -a -G boinc yourusername
-#   and be sure that the boinc group has write permission to the app_config file:
-#    -rw-rw-r-- 1 boinc boinc 1523 Aug 23 08:02 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
-#  After adding yourself to the boinc group, a system reboot is needed
-#   for the new permissions to take effect.
+#   provide your user group permission:
+#   $ sudo chown boinc:youtheuser /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
+#   then change the file's write permission to include the group:
+#   $ sudo chmod 660 /var/lib/boinc-client/projects/einstein.phys.uwm.edu/app_config.xml
 
 # This script edits the app_config.xml file of the boinc-client
 #   in response to dynamic AMD GPU memory requirements during GW task computation.
@@ -397,7 +396,7 @@ fi
 # Need to get the  highest progressed running task, b/c a card with a task at 99% completion
 #   or at the CPU transition stage may have a lower than needed VRAM% for running that task.
 #  A task that has just begun will not have brought VRAM% up to its running 'speed', so
-#   find the lowest frac_done value.
+#   find the lowest $fracdone value.
 # $frac_xx are used in main body to evaluate increasing task X when a task is near completion
 #   or just begun running.
 # Evaluate only when $fracdone is not empty; if empty, set values to prevent a taskX increase.
@@ -557,7 +556,7 @@ elif ((num_run == 0)); then
     if ((boinc_suspend_active > 0)); then
         echo "$(date "+%b %d %T") *** NO TASKS are running *** (updated every $interval_time sec.)
         BOINC suspended tasks because a condition for 'When to suspend' was met; non-BOINC CPU usage limit?
-        Check your BOINC Manager Computing Preference if this becomes a problem." | tee -a $log_file
+        Check your BOINC Manager Computing preferences if this becomes a problem." | tee -a $log_file
         exit 0
     fi
 
