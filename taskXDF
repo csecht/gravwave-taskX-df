@@ -478,7 +478,7 @@ if [[ $running_names ]]; then
             echo "$(date "+%b %d %T") NOTICE! Task $name" | tee -a $log_file
             echo "    is taking more than $ttime_max min to complete " | tee -a $log_file
             if [[ $auto_suspend == yes ]]; then  # Default in .cfg is 'yes'.
-                echo "    It will be SUSPENDED for 10 sec to hasten completion." | tee -a $log_file
+                echo "    It will be temporarily SUSPENDED to hasten its completion." | tee -a $log_file
                 ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} suspend
                 sleep 10
                 ${boinc_cmd} --task http://einstein.phys.uwm.edu/ ${name} resume
@@ -586,7 +586,7 @@ fi
 # Need to provide notification when user has suspended a task.
 if ((num_run > 0 && num_suspended_by_user > 0)); then
     echo
-    echo "$(date "+%b %d %T") *** You have $num_suspended_by_user suspended task(s). ***" | tee -a "$log_file"
+    echo "$(date "+%b %d %T") *** You have $num_suspended_by_user suspended task(s). *** (updated every $interval_time sec.)" | tee -a "$log_file"
     echo "${indent}BOINC will not upload new tasks while tasks are suspended." | tee -a "$log_file"
 #    if [[ $monitor_only == no && $status_only == no ]]; then
 #        echo "${indent}To play it safe, task X will be set to lowest configured level..." | tee -a "$log_file"
