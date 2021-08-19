@@ -554,7 +554,7 @@ elif ((num_run == 0)); then
     fi
 
     if ((boinc_suspend_active > 0)); then
-        echo "$(date "+%b %d %T") *** NO TASKS are running *** (updated every $interval_time sec.)
+        echo "$(date "+%b %d %T") *** NO TASKS are running *** (updated every $interval_time sec; see log file.)
         BOINC suspended tasks because a condition for 'When to suspend' was met; non-BOINC CPU usage limit?
         Check your BOINC Manager Computing preferences if this becomes a problem." | tee -a $log_file
         exit 0
