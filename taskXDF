@@ -578,8 +578,8 @@ elif ((num_run == 0)); then
     # If conditions got to here, then a Project suspension is the likely cause,
     #    but conditions not covered above will also end up here.
     echo "$(date "+%b %d %T") *** NO TASKS are running *** (updated every $interval_time sec.)
-    Check BOINC Manager. Is the Project suspended? Is there a time of day restriction?
-    Once resumed, reporting will continue on scheduled intervals." | tee -a $log_file
+    Check BOINC Manager & Event log. Project suspended? Time of day restriction? Internet down?
+    Once fixed, reporting will continue on scheduled intervals." | tee -a $log_file
     exit 0
 fi
 
