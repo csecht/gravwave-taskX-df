@@ -763,7 +763,8 @@ elif [[ ! $runDF_all =~ [0-9] && $status_only == no ]] && ((num_run > 0)); then
     if [[ ! $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
         printf "$(date "+%b %d %T") NO GW TASKS running at this time.\n" | tee -a $log_file
     elif [[ $nonGW_flag =~ NO[[:space:]]GW[[:space:]]TASKS ]]; then
-        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS running at this time.\n"
+        printf "$del_line_above$(date "+%b %d %T") NO GW TASKS running at this time."
+        printf "See log file for time span.\n"
         # ..need to remove font color escape codes from file text.
         echo "$(date "+%b %d %T") NO GW TASKS running at this time." >>$log_file
     fi
@@ -775,7 +776,8 @@ elif [[ $runDF_all =~ na && $status_only == no ]]; then
         printf "$(date "+%b %d %T") Non-GW task(s) running at this time.\n" | tee -a $log_file
     # subsequent intervals (but not following a timed report)
     elif [[ $nonGW_flag =~ Non-GW ]]; then
-        printf "${del_line_above}$(date "+%b %d %T") Non-GW task(s) running at this time.\n"
+        printf "${del_line_above}$(date "+%b %d %T") Non-GW task(s) running at this time."
+        printf "See log file for time span.\n"
         # ..need to remove font color escape codes from file text.
         echo "$(date "+%b %d %T") Non-GW task(s) running at this time" >>$log_file
     fi
